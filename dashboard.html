@@ -37,14 +37,23 @@
         
         <section id="reports" class="content-section active">
             <div class="report-header-admin">
-                <h2>All Submitted Reports</h2>
-                <button id="refreshReportsBtn" class="main-button" style="width: auto; padding: 10px 15px;">
-                    <i class="fas fa-sync-alt"></i> Refresh
-                </button>
+                <h2 id="reportPageTitle">User Reports Overview</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button id="backToUsersBtn" class="secondary-button hidden" style="width: auto; padding: 10px 15px;"><i class="fas fa-arrow-left"></i> Back</button>
+                    <button id="refreshReportsBtn" class="main-button" style="width: auto; padding: 10px 15px;">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
             </div>
-            <p>Monitor and update the status of incoming emergency reports in real-time. This includes reports submitted through the PWA's three-stage process.</p>
+            <p id="reportPageSubtitle">Select a user to view their submitted reports.</p>
             
-            <div id="reportsGrid" class="reports-grid">
+            <div id="userList" class="reports-list-view">
+                </div>
+
+            <div id="reportList" class="reports-list-view hidden">
+                </div>
+
+            <div id="reportDetail" class="report-detail-split hidden">
                 </div>
         </section>
 
