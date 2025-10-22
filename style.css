@@ -145,10 +145,48 @@ select {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
     border-left: 5px solid var(--secondary-color);
     cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
+
+/* Report List Item (Stage 2) - FIX APPLIED HERE */
+.report-list-item {
+    background-color: var(--light-bg);
+    padding: 15px;
+    border-radius: 12px; /* Increased radius for card look */
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Added shadow for card look */
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+.report-list-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.12);
+}
+
+.report-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px dashed #f0f0f0;
+}
+.report-list-item h4 {
+    margin: 0;
+    font-size: 1.1em;
+    color: var(--primary-color);
+}
+.report-list-item p {
+    margin: 5px 0;
+    font-size: 0.95em;
+}
+
 
 /* --- Report Detail (Stage 3) - REVISED FOR 70:30 SPLIT --- */
 
@@ -199,7 +237,7 @@ select {
     border-bottom: 1px dashed #f0f0f0;
     display: flex;
     justify-content: space-between;
-    align-items: flex-start; /* Align to top for multi-line content */
+    align-items: flex-start; 
     font-size: 1em;
 }
 .detail-item:last-of-type {
@@ -208,13 +246,13 @@ select {
 .detail-item strong {
     font-weight: 600;
     color: #555;
-    flex-basis: 50%; /* Adjust label width for better readability in the split */
+    flex-basis: 50%; 
 }
 .detail-item span {
     flex-grow: 1;
     text-align: right;
     color: #333;
-    word-break: break-all; /* Ensure long emails/phones don't break layout */
+    word-break: break-all; 
 }
 
 /* Description Box */
@@ -230,7 +268,7 @@ select {
 
 /* Map Wrapper for Clickable Map Preview */
 .map-link-wrapper {
-    display: block; /* Make the anchor tag block-level */
+    display: block; 
     cursor: pointer;
     text-decoration: none;
     position: relative;
@@ -245,10 +283,9 @@ select {
 /* Embedded Map Styles (OpenStreetMap) */
 .embedded-map {
     width: 100%;
-    height: 300px; /* Adjusted height for the new split view */
+    height: 300px; 
     border: none;
     display: block;
-    /* This makes the anchor tag above it capture the click instead of the iframe */
     pointer-events: none; 
 }
 

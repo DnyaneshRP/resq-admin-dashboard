@@ -218,7 +218,7 @@ function renderUserList() {
     reportDetailEl().classList.add('hidden');
     backButtonEl().classList.add('hidden');
     titleEl().textContent = 'User Reports Overview';
-    subtitleEl().textContent = `Displaying reports from ${UNIQUE_USERS.length} unique users, newest first.`;
+    subtitleEl().textContent = `Displaying reports from ${UNIQUE_USERS.length} users.`;
 
 
     if (UNIQUE_USERS.length === 0) {
@@ -270,7 +270,7 @@ function renderUserReports(userId, userName) {
     reportDetailEl().classList.add('hidden');
     backButtonEl().classList.remove('hidden'); 
     titleEl().textContent = `Reports from ${userName}`;
-    subtitleEl().textContent = `Viewing ${userReports.length} reports submitted by this user (newest first).`;
+    subtitleEl().textContent = `Viewing ${userReports.length} reports submitted by this user.`;
 
     reportListEl().innerHTML = userReports.map(report => {
         const date = new Date(report.timestamp).toLocaleString();
