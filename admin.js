@@ -111,7 +111,7 @@ function handleLogout() {
 }
 
 // =================================================================
-// --- Reports Dashboard Module (FIXED PROFILES TABLE NAME) ---
+// --- Reports Dashboard Module (CORRECTED TABLE NAME: profiles) ---
 // =================================================================
 
 // --- Stage 1: Fetch and Render Unique Users ---
@@ -123,15 +123,14 @@ async function fetchUsersWithReports() {
     // Fetch all reports and join profile data, sorted by timestamp (most recent first)
     const { data, error } = await supabase
         .from('emergency_reports')
-        // FIX: Changed 'user_profiles(*)' back to 'profiles(*)' based on user's schema
-        .select('*, profiles(*)') 
+        .select('*, profiles(*)') // <-- This uses the correct table name 'profiles(*)'
         .order('timestamp', { ascending: false }); 
 
     if (error) {
         console.error('Error fetching reports:', error);
-        // Display a more specific message about the potential RLS issue
+        // Prompt RLS check again
         showMessage('Error fetching reports: ' + (error.message || 'Check network connection or RLS policy.'), 'error', 7000);
-        userListEl().innerHTML = '<p class="text-center">Failed to load reports. **Action Required: Check RLS policy or table name.**</p>';
+        userListEl().innerHTML = '<p class="text-center">Failed to load reports. **Action Required: Check RLS policy.**</p>';
         return;
     }
 
@@ -146,7 +145,7 @@ async function fetchUsersWithReports() {
 
         if (!userMap.has(userId)) {
             userMap.set(userId, {
-                // FIX: Changed 'report.user_profiles' back to 'report.profiles'
+                // Accessing the joined data with the correct key: report.profiles
                 profile: report.profiles || { fullname: 'Unknown User' },
                 reportCount: 0,
                 lastReportTime: 0,
@@ -271,7 +270,7 @@ function renderReportDetail(reportId) {
     const report = ALL_REPORTS.find(r => r.id === reportId);
     if (!report) return;
 
-    // FIX: Changed 'report.user_profiles' back to 'report.profiles'
+    // Accessing the joined data with the correct key: report.profiles
     const profile = report.profiles || {};
     const photoLink = report.photo_url ? getPublicPhotoUrl(report.photo_url) : null;
     // Correct Google Maps link for detail view
@@ -300,7 +299,6 @@ function renderReportDetail(reportId) {
             <hr>
             <h4><i class="fas fa-map-marker-alt"></i> Location & Image</h4>
 
-            <!-- Embedded Map/Location Section -->
             <div class="location-section">
                 <p><strong>Coordinates:</strong> ${report.latitude}, ${report.longitude}</p>
                 <p><strong>Location:</strong> ${report.location_text || 'GPS Coordinates Only'}</p>
@@ -310,7 +308,6 @@ function renderReportDetail(reportId) {
                 </div>
             </div>
 
-            <!-- Embedded Image Section -->
             ${photoLink ? `
                 <div class="image-section">
                     <p><strong>Attached Photo:</strong></p>
@@ -321,7 +318,6 @@ function renderReportDetail(reportId) {
             ` : '<p>No photo attached to this report.</p>'}
 
             <hr>
-            <!-- Status Update Section -->
             <div class="status-update-section">
                 <label>Update Status:</label>
                 <select class="status-dropdown" data-report-id="${report.id}" data-current-status="${report.status}">
@@ -410,7 +406,7 @@ async function handleStatusUpdate(e) {
              renderReportDetail(reportId);
         } else if (CURRENT_VIEW === 'reports') {
             const currentUserId = ALL_REPORTS[updatedReportIndex].user_id;
-            // FIX: Changed 'profiles.fullname' back to 'profiles.fullname'
+            // Accessing the joined data with the correct key: report.profiles
             const currentUserName = ALL_REPORTS[updatedReportIndex].profiles.fullname || 'Unknown User';
             renderUserReports(currentUserId, currentUserName);
         }
