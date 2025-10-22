@@ -86,7 +86,7 @@ function handleLogout() {
 }
 
 // =================================================================
-// --- Reports Dashboard Module ---
+// --- Reports Dashboard Module (Updated) ---
 // =================================================================
 
 function renderReports(reports) {
@@ -104,21 +104,34 @@ function renderReports(reports) {
             ? getPublicPhotoUrl(report.photo_url)
             : null;
         
-        // Google Maps link with Lat/Lon
-        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`;
-
+        // FIX 1: Correct Google Maps link syntax
+        const mapUrl = `https://maps.google.com/maps?q=${report.latitude},${report.longitude}`;
+        
+        // FIX 2: Extract Profile Data (Nested object from the join)
+        const profile = report.profiles || {}; 
+        
         return `
             <div class="report-card">
                 <div>
                     <h4>${report.incident_type || 'Unknown Incident'} 
                         <span class="status-tag ${report.status}">${report.status}</span>
                     </h4>
+                    
                     <p><strong>Time:</strong> ${date}</p>
                     <p><strong>Location:</strong> <a href="${mapUrl}" target="_blank" class="text-link">View Map (${report.latitude}, ${report.longitude})</a></p>
                     <p><strong>Severity:</strong> ${report.severity_level || 'Low'}</p>
                     <p><strong>Details:</strong> ${report.incident_details || 'N/A'}</p>
                     ${photoLink ? `<p><strong>Photo:</strong> <a href="${photoLink}" target="_blank" class="text-link">View Image</a></p>` : ''}
-                    <p><strong>User ID:</strong> ${report.user_id}</p>
+                    
+                    <hr style="margin: 10px 0; border: 0; border-top: 1px solid #e0e0e0;">
+                    
+                    <h5 style="margin-bottom: 5px; color: #1976d2;">User Profile:</h5>
+                    <p><strong>Name:</strong> ${profile.fullname || 'N/A'}</p>
+                    <p><strong>Email:</strong> ${profile.email || 'N/A'}</p>
+                    <p><strong>Phone:</strong> ${profile.phone || 'N/A'}</p>
+                    <p><strong>Address:</strong> ${profile.address ? `${profile.address}, ${profile.city} - ${profile.pincode}` : 'N/A'}</p>
+                    <p><strong>Medical:</strong> ${profile.medical || 'None specified'}</p>
+                    <p><strong>Emergency 1:</strong> ${profile.emergency1 || 'N/A'}</p>
                 </div>
                 
                 <div class="report-footer">
@@ -157,15 +170,16 @@ async function fetchReports() {
 
     grid.innerHTML = '<div class="text-center" style="grid-column: 1 / -1; padding: 50px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--primary-color);"></i><p>Loading reports...</p></div>';
 
+    // FIX 4: Use '*, profiles(*)' to fetch report details AND join the associated user profile data
     const { data, error } = await supabase
         .from('emergency_reports')
-        .select('*')
+        .select('*, profiles(*)') 
         .order('timestamp', { ascending: false });
 
     if (error) {
         console.error('Error fetching reports:', error);
-        showMessage('Error fetching reports: ' + error.message, 'error', 5000);
-        grid.innerHTML = '<p class="text-center" style="grid-column: 1 / -1;">Failed to load reports. Check RLS or connection.</p>';
+        showMessage('Error fetching reports: ' + error.message + '. Please check the RLS policy for emergency_reports.', 'error', 7000);
+        grid.innerHTML = '<p class="text-center" style="grid-column: 1 / -1;">Failed to load reports. **Action Required: Check RLS policy.**</p>';
         return;
     }
 
@@ -192,7 +206,7 @@ async function handleStatusUpdate(e) {
 
     if (error) {
         console.error('Status update failed:', error);
-        showMessage('Failed to update status: ' + error.message, 'error', 5000);
+        showMessage('Failed to update status: ' + error.message + '. Check the RLS policy for updates.', 'error', 5000);
         dropdown.value = oldStatus; // Revert selection
     } else {
         showMessage(`Report ${reportId} status successfully set to ${newStatus}.`, 'success', 3000);
