@@ -111,7 +111,7 @@ function handleLogout() {
 }
 
 // =================================================================
-// --- Reports Dashboard Module (UPDATED SORTING LOGIC) ---
+// --- Reports Dashboard Module (FIXED PROFILES TABLE NAME) ---
 // =================================================================
 
 // --- Stage 1: Fetch and Render Unique Users ---
@@ -123,13 +123,14 @@ async function fetchUsersWithReports() {
     // Fetch all reports and join profile data, sorted by timestamp (most recent first)
     const { data, error } = await supabase
         .from('emergency_reports')
-        .select('*, profiles(*)') 
-        .order('timestamp', { ascending: false }); // **SORT BY TIME**
+        // FIX: Changed 'profiles(*)' to 'user_profiles(*)' as per user feedback
+        .select('*, user_profiles(*)') 
+        .order('timestamp', { ascending: false }); 
 
     if (error) {
         console.error('Error fetching reports:', error);
         showMessage('Error fetching reports: ' + error.message, 'error', 7000);
-        userListEl().innerHTML = '<p class="text-center">Failed to load reports. **Action Required: Check RLS policy.**</p>';
+        userListEl().innerHTML = '<p class="text-center">Failed to load reports. **Action Required: Check RLS policy or table name.**</p>';
         return;
     }
 
@@ -140,12 +141,12 @@ async function fetchUsersWithReports() {
 
     data.forEach(report => {
         const userId = report.user_id;
-        // Check if the report has a user_id (should always be true)
         if (!userId) return; 
 
         if (!userMap.has(userId)) {
             userMap.set(userId, {
-                profile: report.profiles || { fullname: 'Unknown User' },
+                // FIX: Changed 'report.profiles' to 'report.user_profiles'
+                profile: report.user_profiles || { fullname: 'Unknown User' },
                 reportCount: 0,
                 lastReportTime: 0,
                 reports: []
@@ -222,7 +223,6 @@ function renderUserReports(userId, userName) {
 
     const userReports = ALL_REPORTS
         .filter(report => report.user_id === userId)
-        // Sort reports for this user by time (newest first)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); 
 
     if (userReports.length === 0) return; 
@@ -270,7 +270,8 @@ function renderReportDetail(reportId) {
     const report = ALL_REPORTS.find(r => r.id === reportId);
     if (!report) return;
 
-    const profile = report.profiles || {};
+    // FIX: Changed 'report.profiles' to 'report.user_profiles'
+    const profile = report.user_profiles || {};
     const photoLink = report.photo_url ? getPublicPhotoUrl(report.photo_url) : null;
     // Correct Google Maps link for detail view
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`;
@@ -405,7 +406,8 @@ async function handleStatusUpdate(e) {
              renderReportDetail(reportId);
         } else if (CURRENT_VIEW === 'reports') {
             const currentUserId = ALL_REPORTS[updatedReportIndex].user_id;
-            const currentUserName = ALL_REPORTS[updatedReportIndex].profiles.fullname || 'Unknown User';
+            // FIX: Changed 'profiles.fullname' to 'user_profiles.fullname'
+            const currentUserName = ALL_REPORTS[updatedReportIndex].user_profiles.fullname || 'Unknown User';
             renderUserReports(currentUserId, currentUserName);
         }
     }
