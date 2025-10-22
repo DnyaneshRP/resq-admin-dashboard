@@ -2,7 +2,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.44.3/+esm';
 
 // =================================================================
-// YOUR SUPABASE CONFIGURATION 
+// YOUR SUPABASE CONFIGURATION (Ensures connection to the Reports Table)
 // =================================================================
 const SUPABASE_URL = 'https://ayptiehjxxincwsbtysl.supabase.co'; 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5cHRpZWhqeHhpbmN3c2J0eXNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1OTY2NzIsImV4cCI6MjA3NjE3MjY3Mn0.jafnb-fxqWbZm7uJf2g17CgiGzS-MetDY1h0kV-d0vg'; 
@@ -86,7 +86,7 @@ function handleLogout() {
 }
 
 // =================================================================
-// --- Reports Dashboard Module ---
+// --- Reports Dashboard Module (Handles PWA Reports) ---
 // =================================================================
 
 function renderReports(reports) {
@@ -100,12 +100,31 @@ function renderReports(reports) {
 
     grid.innerHTML = reports.map(report => {
         const date = new Date(report.timestamp).toLocaleString();
-        const photoLink = report.photo_url 
-            ? getPublicPhotoUrl(report.photo_url)
-            : null;
         
-        // Google Maps link with Lat/Lon
-        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`;
+        let photoLink = null;
+        if (report.photo_url) {
+            try {
+                // Generate public URL for the photo stored in the bucket
+                const { data } = supabase.storage
+                    .from(REPORT_BUCKET)
+                    .getPublicUrl(report.photo_url);
+                photoLink = data.publicUrl;
+            } catch (e) {
+                console.error("Error generating public URL:", e);
+                // Fallback in case of error
+                photoLink = report.photo_url.startsWith('http') ? report.photo_url : null;
+            }
+        }
+        
+        // Google Maps link with Lat/Lon (The "free map alternative")
+        let locationText = 'Location Data Missing';
+        let mapUrl = '#';
+
+        if (report.latitude && report.longitude) {
+            // Using a standard Google Maps URL for viewing coordinates
+            mapUrl = `https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`;
+            locationText = `<a href="${mapUrl}" target="_blank" class="text-link">View Map (${report.latitude}, ${report.longitude})</a>`;
+        }
 
         return `
             <div class="report-card">
@@ -114,7 +133,7 @@ function renderReports(reports) {
                         <span class="status-tag ${report.status}">${report.status}</span>
                     </h4>
                     <p><strong>Time:</strong> ${date}</p>
-                    <p><strong>Location:</strong> <a href="${mapUrl}" target="_blank" class="text-link">View Map (${report.latitude}, ${report.longitude})</a></p>
+                    <p><strong>Location:</strong> ${locationText}</p>
                     <p><strong>Severity:</strong> ${report.severity_level || 'Low'}</p>
                     <p><strong>Details:</strong> ${report.incident_details || 'N/A'}</p>
                     ${photoLink ? `<p><strong>Photo:</strong> <a href="${photoLink}" target="_blank" class="text-link">View Image</a></p>` : ''}
@@ -138,18 +157,6 @@ function renderReports(reports) {
     });
 }
 
-function getPublicPhotoUrl(filePath) {
-    try {
-        const { data } = supabase.storage
-            .from(REPORT_BUCKET)
-            .getPublicUrl(filePath);
-        return data.publicUrl;
-    } catch (e) {
-        console.error("Failed to generate public URL:", e);
-        return null;
-    }
-}
-
 
 async function fetchReports() {
     const grid = document.getElementById('reportsGrid');
@@ -157,6 +164,7 @@ async function fetchReports() {
 
     grid.innerHTML = '<div class="text-center" style="grid-column: 1 / -1; padding: 50px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--primary-color);"></i><p>Loading reports...</p></div>';
 
+    // Fetch all reports, ordered by newest first
     const { data, error } = await supabase
         .from('emergency_reports')
         .select('*')
