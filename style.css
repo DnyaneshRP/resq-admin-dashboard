@@ -8,14 +8,6 @@ body {
     font-size: 16px;
 }
 
-/* Utility Class */
-.hidden {
-    display: none !important;
-}
-.text-center {
-    text-align: center;
-}
-
 /* Primary Color Palette */
 :root {
     --primary-color: #d32f2f; /* Deep Red */
@@ -27,7 +19,7 @@ body {
 
 /* --- Main Layout --- */
 .container {
-    max-width: 1300px;
+    max-width: 1300px; /* Wider container for the split view */
     margin: 0 auto;
     padding: 20px;
     box-sizing: border-box;
@@ -46,13 +38,18 @@ body {
     top: 0;
     z-index: 1000;
 }
+.header h1 {
+    margin: 0;
+    font-size: 1.5em;
+}
 .navbar a {
     color: white;
     text-decoration: none;
     padding: 8px 15px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+    font-weight: 500;
     margin-left: 10px;
-    border-radius: 8px;
-    transition: background-color 0.3s;
 }
 .navbar a:hover, .navbar a.active {
     background-color: var(--primary-dark);
@@ -63,18 +60,23 @@ body {
     max-width: 400px;
     margin: 100px auto;
     background-color: var(--light-bg);
-    padding: 30px;
+    padding: 40px;
     border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
     text-align: center;
 }
+.login-card h2 {
+    margin-top: 0;
+    color: #333;
+    font-size: 1.8em;
+}
 
-/* --- Form and Inputs --- */
+/* --- Form Elements --- */
 .form-group {
     margin-bottom: 20px;
     text-align: left;
 }
-label {
+.form-group label {
     display: block;
     margin-bottom: 8px;
     font-weight: 600;
@@ -90,259 +92,278 @@ select {
     border-radius: 8px;
     box-sizing: border-box;
     font-size: 1em;
-    transition: border-color 0.3s;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+input[type="text"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.2);
+    outline: none;
 }
 
 /* --- Buttons --- */
-.main-button {
+.main-button, button[type="submit"] {
+    display: block;
+    width: 100%;
+    padding: 12px 20px;
+    margin-top: 10px;
     background-color: var(--primary-color);
     color: white;
-    padding: 12px 25px;
     border: none;
     border-radius: 8px;
     cursor: pointer;
     font-size: 1em;
-    font-weight: 700;
-    transition: background-color 0.3s, transform 0.1s;
-    width: 100%;
-    box-shadow: 0 4px 10px rgba(211, 47, 47, 0.3);
+    font-weight: 600;
+    transition: background-color 0.2s, transform 0.1s;
 }
-.secondary-button {
-    background-color: #f5f5f5;
-    color: #555;
-    border: 1px solid var(--border-color);
-    padding: 12px 25px;
-    border-radius: 8px;
+.main-button:hover, button[type="submit"]:hover {
+    background-color: var(--primary-dark);
+}
+.main-button:active, button[type="submit"]:active {
+    transform: scale(0.99);
+}
+.main-button i, button[type="submit"] i {
+    margin-right: 8px;
+}
+
+/* --- Report Grid / User List / Report List Containers --- */
+.reports-list-view {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* --- Report Card (Generic) --- */
+.report-card {
+    background-color: var(--light-bg);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border-left: 5px solid var(--primary-color);
+    transition: transform 0.1s, box-shadow 0.1s;
     cursor: pointer;
-    font-size: 1em;
-    font-weight: 700;
-    transition: background-color 0.3s;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+.report-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
-
-/* --- Dashboard View Elements --- */
-
-.report-header-admin {
+.report-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
 }
-
-.reports-list-view {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 15px;
-    margin-top: 20px;
-}
-
-/* User Card (Stage 1) */
-.user-card {
-    background-color: var(--light-bg);
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-    border-left: 5px solid var(--secondary-color);
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-/* Report List Item (Stage 2) - FIX APPLIED HERE */
-.report-list-item {
-    background-color: var(--light-bg);
-    padding: 15px;
-    border-radius: 12px; /* Increased radius for card look */
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Added shadow for card look */
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    display: flex;
-    flex-direction: column;
-}
-
-.report-list-item:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.12);
-}
-
-.report-item-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 5px;
-    padding-bottom: 5px;
-    border-bottom: 1px dashed #f0f0f0;
-}
-.report-list-item h4 {
+.report-header h4 {
     margin: 0;
     font-size: 1.1em;
-    color: var(--primary-color);
+    color: var(--secondary-color);
 }
-.report-list-item p {
+.report-card p {
     margin: 5px 0;
     font-size: 0.95em;
+    line-height: 1.4;
+}
+.report-card strong {
+    color: #333;
 }
 
+/* --- User Card Specific --- */
+.user-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-left: 5px solid var(--secondary-color);
+}
+.user-card .user-info {
+    text-align: left;
+}
+.user-card .user-info h4 {
+    margin: 0 0 5px 0;
+    color: #333;
+}
+.user-card .user-info p {
+    margin: 0;
+    font-size: 0.85em;
+    color: #777;
+}
 
-/* --- Report Detail (Stage 3) - REVISED FOR 70:30 SPLIT --- */
+.user-card-icon {
+    font-size: 1.5em;
+    color: var(--primary-color);
+    margin-right: 15px;
+}
 
-/* Main container for the 70:30 split */
+/* --- Report Detail Split View --- */
 .report-detail-split {
     display: grid;
-    grid-template-columns: 7fr 3fr; /* 70:30 split */
+    grid-template-columns: 2fr 1fr; /* Main detail on left, actions on right */
     gap: 20px;
-    margin-top: 20px;
-}
-
-/* Left Panel (70%): Contains all report cards */
-.report-details-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-/* Right Panel (30%): Contains the user profile card */
-.profile-details-panel {
-    /* No special styling needed here, just holds a detail-card */
-}
-
-/* Detail Card: The primary visual container */
-.detail-card {
+    padding: 20px;
     background-color: var(--light-bg);
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    min-height: 50vh;
 }
 
-.detail-card h3 {
+.detail-main h3 {
+    color: var(--primary-color);
     border-bottom: 2px solid var(--border-color);
     padding-bottom: 10px;
     margin-top: 0;
-    margin-bottom: 20px;
-    color: var(--primary-color);
-    font-size: 1.4em;
 }
-.detail-card h3 i {
-    margin-right: 10px;
-    color: var(--secondary-color);
-}
-
-/* Detail Item: Key/Value pairs */
-.detail-item {
-    padding: 10px 0;
-    border-bottom: 1px dashed #f0f0f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start; 
-    font-size: 1em;
-}
-.detail-item:last-of-type {
-    border-bottom: none;
-}
-.detail-item strong {
-    font-weight: 600;
-    color: #555;
-    flex-basis: 50%; 
-}
-.detail-item span {
-    flex-grow: 1;
-    text-align: right;
-    color: #333;
-    word-break: break-all; 
-}
-
-/* Description Box */
-.detail-description-box {
-    background-color: #f9f9f9;
-    padding: 15px;
-    border-radius: 8px;
-    border-left: 5px solid var(--primary-color);
+.detail-main p {
+    margin: 10px 0;
     line-height: 1.6;
-    margin-top: 10px;
-    white-space: pre-wrap;
+}
+.detail-main strong {
+    color: #333;
 }
 
-/* Map Wrapper for Clickable Map Preview */
-.map-link-wrapper {
-    display: block; 
-    cursor: pointer;
-    text-decoration: none;
-    position: relative;
+.detail-actions {
+    background-color: #f9f9f9;
+    padding: 20px;
     border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border-color);
 }
-.map-link-wrapper:hover {
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+.detail-actions h4 {
+    margin-top: 0;
+    color: #555;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
 }
-
-/* Embedded Map Styles (OpenStreetMap) */
-.embedded-map {
-    width: 100%;
-    height: 300px; 
-    border: none;
-    display: block;
-    pointer-events: none; 
-}
-
-.map-placeholder {
-    background-color: #f5f5f5; 
-    color: #777;
-    text-align: center;
-    padding: 50px 20px;
-    border-radius: 8px;
+.detail-actions button {
     margin-top: 15px;
-    font-style: italic;
-    border: 1px dashed #ccc;
 }
 
-.report-photo {
-    max-width: 100%;
-    max-height: 300px; 
-    object-fit: contain;
-    border-radius: 8px;
-    display: block;
-    margin: 10px auto;
-}
-
-/* Status and Severity Tags */
+/* Status Badges */
 .status-tag {
     font-weight: 700;
     padding: 5px 10px;
     border-radius: 6px;
-    font-size: 0.8em;
+    font-size: 0.85em;
     text-transform: uppercase;
 }
-.status-tag.Reported { background-color: #bbdefb; color: var(--secondary-color); }
-.status-tag.Assigned { background-color: #ffc107; color: #333; }
-.status-tag.Resolved { background-color: #388e3c; color: white; }
+/* Reported Status (Red Badge) */
+.status-tag.Reported { 
+    background-color: var(--primary-color);
+    color: white; 
+}
 
+/* Assigned Status (Amber Badge) */
+.status-tag.Assigned { 
+    background-color: #ffc107; /* Amber */
+    color: #333; /* Dark text for contrast */
+}
+
+/* Resolved Status (Green Badge) */
+.status-tag.Resolved { 
+    background-color: #388e3c; /* Green */
+    color: white; 
+}
+
+/* Severity Tag */
 .severity-tag {
     padding: 3px 8px;
     border-radius: 4px;
     font-size: 0.9em;
     font-weight: 600;
     text-transform: capitalize;
+    display: inline-block;
+    margin-bottom: 10px;
 }
 .severity-tag.severity-high {
     background-color: var(--primary-color);
     color: white;
 }
 .severity-tag.severity-medium {
-    background-color: #ff9800; 
+    background-color: #ff9800; /* Orange */
     color: white;
 }
 .severity-tag.severity-low {
-    background-color: #4caf50; 
+    background-color: #4caf50; /* Light Green */
     color: white;
 }
 
-.text-link {
-    color: var(--secondary-color);
-    text-decoration: none;
-    font-weight: 600;
+
+/* --- Broadcast Module --- */
+.broadcast-card {
+    max-width: 600px;
+    margin: 50px auto;
+    background-color: var(--light-bg);
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* --- Custom Message Box (Toast) --- */
+
+#customMessageBox {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    /* Start off-screen below, opacity 0 */
+    transform: translateX(-50%) translateY(100px); 
+    opacity: 0; 
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    font-weight: 500;
+    z-index: 5000;
+    /* Transition for slide-in/out and fade */
+    transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out; 
+    max-width: 90%; /* Ensure it works on small screens */
+    text-align: center;
+}
+
+/* State when shown */
+#customMessageBox.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0); /* Move up to final position */
+}
+
+/* Message Types */
+#customMessageBox.success {
+    background-color: #4CAF50; /* Green for success (e.g., Login Successful, Broadcast Sent) */
+}
+#customMessageBox.error {
+    background-color: var(--primary-color); /* Deep Red for error (e.g., Login Failed) */
+}
+#customMessageBox.warning {
+    background-color: #FFC107; /* Amber/Orange for warnings */
+    color: #333; /* Dark text for contrast */
+}
+#customMessageBox.info {
+    background-color: var(--secondary-color); /* Blue for general info (e.g., Redirecting) */
+}
+
+/* Media Queries for responsiveness */
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        text-align: center;
+    }
+    .navbar {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .navbar a {
+        margin: 5px;
+    }
+    .container {
+        padding: 10px;
+    }
+    .login-card, .broadcast-card {
+        margin: 50px 10px;
+        padding: 20px;
+    }
+    .report-detail-split {
+        grid-template-columns: 1fr; /* Stack on mobile */
+    }
 }
