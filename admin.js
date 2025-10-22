@@ -67,19 +67,16 @@ function getPublicPhotoUrl(filePath) {
 }
 
 /**
- * Generates an OpenStreetMap (OSM) embed URL using iframe. This is free 
- * and provides a small map preview without an API key.
+ * Generates an OpenStreetMap (OSM) embed URL using iframe.
  */
 function generateOsmIframe(lat, lon) {
     if (lat && lon) {
-        // Adjust bounding box (bbox) for a good zoom level around the marker (approx zoom 15)
         const d = 0.005; 
         const lon1 = lon - d;
         const lat1 = lat - d;
         const lon2 = lon + d;
         const lat2 = lat + d;
         
-        // OpenStreetMap embed URL. No API key needed.
         return `<iframe class="embedded-map"
                     frameborder="0" scrolling="no" marginheight="0" marginwidth="0" 
                     src="https://www.openstreetmap.org/export/embed.html?bbox=${lon1},${lat1},${lon2},${lat2}&layer=mapnik&marker=${lat},${lon}"></iframe>`;
@@ -88,10 +85,14 @@ function generateOsmIframe(lat, lon) {
 }
 
 /**
- * Fallback to a simple Google Maps URL (view only, not embed)
+ * Generates a simple Google Maps URL for a new tab/window.
  */
 function generateMapUrl(lat, lon) {
-    return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+    if (lat && lon) {
+         // Using the full Google Maps URL format for better compatibility
+        return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+    }
+    return '#';
 }
 
 
@@ -147,7 +148,6 @@ function handleLogout() {
 
 function handleBack() {
     if (CURRENT_VIEW === 'detail') {
-        // Back from Report Detail (Stage 3) to User Reports (Stage 2)
         const reportId = reportDetailEl().dataset.reportId;
         const report = ALL_REPORTS.find(r => r.id === reportId);
 
@@ -155,22 +155,18 @@ function handleBack() {
             const userName = report.profiles?.fullname || `User`;
             renderUserReports(report.user_id, userName);
         } else {
-            renderUserList(); // Fallback to list if report is missing
+            renderUserList(); 
         }
     } else if (CURRENT_VIEW === 'reports') {
-        // Back from User Reports (Stage 2) to All Users (Stage 1)
         renderUserList(); 
     }
 }
 
-
 // --- Stage 1: Fetch and Render Unique Users (Initial View) ---
 
 async function fetchUsersWithReports() {
-    // Show loading state
     userListEl().innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> Loading user reports...</div>';
     
-    // Fetch all reports and join profile data, sorted by timestamp (most recent first)
     const { data, error } = await supabase
         .from('emergency_reports')
         .select('*, profiles(*)') 
@@ -185,7 +181,6 @@ async function fetchUsersWithReports() {
 
     ALL_REPORTS = data;
     
-    // Group reports by user_id to find unique reporters
     const userMap = new Map();
 
     data.forEach(report => {
@@ -209,7 +204,6 @@ async function fetchUsersWithReports() {
         }
     });
     
-    // Convert Map values to an array, sort by last report time (newest reporter first)
     UNIQUE_USERS = Array.from(userMap.values())
         .sort((a, b) => b.lastReportTime - a.lastReportTime);
         
@@ -219,7 +213,6 @@ async function fetchUsersWithReports() {
 function renderUserList() {
     CURRENT_VIEW = 'users';
     
-    // UI visibility
     userListEl().classList.remove('hidden');
     reportListEl().classList.add('hidden');
     reportDetailEl().classList.add('hidden');
@@ -236,7 +229,7 @@ function renderUserList() {
     userListEl().innerHTML = UNIQUE_USERS.map(userEntry => {
         const profile = userEntry.profile;
         const userId = userEntry.reports[0].user_id;
-        const fullName = profile.fullname || `User (${userId.substring(0, 8)}...)`;
+        const fullName = profile.fullname || `User`;
         const lastReportDate = new Date(userEntry.lastReportTime).toLocaleString();
 
         return `
@@ -254,7 +247,6 @@ function renderUserList() {
         `;
     }).join('');
 
-    // Attach click listeners to user cards
     document.querySelectorAll('.user-card').forEach(card => {
         card.addEventListener('click', (e) => {
             const userId = e.currentTarget.dataset.userId;
@@ -273,17 +265,16 @@ function renderUserReports(userId, userName) {
         .filter(report => report.user_id === userId)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); 
 
-    // UI visibility
     userListEl().classList.add('hidden');
     reportListEl().classList.remove('hidden');
     reportDetailEl().classList.add('hidden');
-    backButtonEl().classList.remove('hidden'); // Show back button
+    backButtonEl().classList.remove('hidden'); 
     titleEl().textContent = `Reports from ${userName}`;
     subtitleEl().textContent = `Viewing ${userReports.length} reports submitted by this user (newest first).`;
 
     reportListEl().innerHTML = userReports.map(report => {
         const date = new Date(report.timestamp).toLocaleString();
-        const mapUrl = generateMapUrl(report.latitude, report.longitude); // Use corrected URL
+        const mapUrl = generateMapUrl(report.latitude, report.longitude); 
 
         return `
             <div class="report-list-item" data-report-id="${report.id}">
@@ -298,7 +289,6 @@ function renderUserReports(userId, userName) {
         `;
     }).join('');
 
-    // Attach click listeners to report items
     document.querySelectorAll('.report-list-item').forEach(item => {
         item.addEventListener('click', (e) => {
             const reportId = e.currentTarget.dataset.reportId;
@@ -307,7 +297,42 @@ function renderUserReports(userId, userName) {
     });
 }
 
-// --- Stage 3: Render Report and Profile Details (Updated for single column and map embed) ---
+/**
+ * Generates HTML for profile details, excluding any IDs.
+ */
+function generateProfileDetails(profile) {
+    const excludedKeys = ['id', 'user_id', 'created_at']; 
+    
+    // Get all keys from the profile object
+    const allKeys = Object.keys(profile);
+    
+    let html = '';
+    
+    allKeys.forEach(key => {
+        // Exclude internal keys
+        if (excludedKeys.includes(key) || !profile[key]) return;
+
+        // Convert key name (e.g., 'full_name') to a clean label (e.g., 'Full Name')
+        const label = key.split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+        
+        // Display the field
+        html += `
+            <div class="detail-item">
+                <strong>${label}:</strong> <span>${profile[key]}</span>
+            </div>
+        `;
+    });
+    
+    if (!html) {
+        return '<p class="text-center" style="padding: 20px;">No user registration details available.</p>';
+    }
+    
+    return html;
+}
+
+// --- Stage 3: Render Report and Profile Details (Updated for 70:30 split) ---
 
 function renderReportDetail(reportId) {
     CURRENT_VIEW = 'detail';
@@ -318,7 +343,7 @@ function renderReportDetail(reportId) {
     const photoLink = report.photo_url ? getPublicPhotoUrl(report.photo_url) : null;
     const date = new Date(report.timestamp).toLocaleString();
     
-    // Generate map embed and link
+    // Generate map embed and Google Maps link
     const mapIframeHtml = generateOsmIframe(report.latitude, report.longitude);
     const mapUrl = generateMapUrl(report.latitude, report.longitude);
 
@@ -328,19 +353,22 @@ function renderReportDetail(reportId) {
     reportDetailEl().classList.remove('hidden');
     backButtonEl().classList.remove('hidden'); 
     
-    titleEl().textContent = `Emergency Report Detail`; // Removed ID
+    titleEl().textContent = `Emergency Report Detail`; 
     subtitleEl().textContent = `${report.incident_type} reported on ${date}`;
     reportDetailEl().dataset.reportId = reportId;
 
-    // Map/Location content with embedded map
+    // Location & Media content (LEFT SIDE)
     const locationInfoHtml = report.latitude && report.longitude ? 
         `
             <div class="detail-item">
                 <strong>Coordinates:</strong> <span>${report.latitude}, ${report.longitude}</span>
             </div>
-            <div class="map-container" style="margin-top: 20px;">
-                ${mapIframeHtml || `<div class="map-placeholder">Failed to embed map. <a href="${mapUrl}" target="_blank">View on Google Maps</a></div>`}
-            </div>
+            
+            <a href="${mapUrl}" target="_blank" class="map-link-wrapper" title="Click to view full map on Google Maps">
+                <div class="map-container">
+                    ${mapIframeHtml}
+                </div>
+            </a>
         `
         : 
         `<div class="map-placeholder">Geospatial location data is not available for this report.</div>`;
@@ -364,56 +392,52 @@ function renderReportDetail(reportId) {
         </select>
     `;
 
-    // Construct the single-column, card-based HTML
+    // Construct the two-column (70:30) HTML structure
     reportDetailEl().innerHTML = `
         
-        <div class="detail-card">
-            <h3><i class="fas fa-exclamation-triangle"></i> Incident Overview</h3>
+        <div class="report-details-panel">
             
-            <div class="detail-item">
-                <strong>Incident Type:</strong> <span>${report.incident_type || 'N/A'}</span>
-            </div>
-            
-            <div class="detail-item">
-                <strong>Time Reported:</strong> <span>${date}</span>
-            </div>
-            
-            <div class="detail-item">
-                <strong>Severity Level:</strong> <span class="severity-tag severity-${report.severity_level?.toLowerCase() || 'low'}">${report.severity_level || 'Low'}</span>
-            </div>
-            
-            <div class="detail-item">
-                <strong>Current Status:</strong> ${statusDropdownHtml}
+            <div class="detail-card">
+                <h3><i class="fas fa-exclamation-triangle"></i> Incident Overview</h3>
+                
+                <div class="detail-item">
+                    <strong>Incident Type:</strong> <span>${report.incident_type || 'N/A'}</span>
+                </div>
+                
+                <div class="detail-item">
+                    <strong>Time Reported:</strong> <span>${date}</span>
+                </div>
+                
+                <div class="detail-item">
+                    <strong>Severity Level:</strong> <span class="severity-tag severity-${report.severity_level?.toLowerCase() || 'low'}">${report.severity_level || 'Low'}</span>
+                </div>
+                
+                <div class="detail-item">
+                    <strong>Current Status:</strong> ${statusDropdownHtml}
+                </div>
+
+                <p style="margin-top: 20px;"><strong>Report Description:</strong></p>
+                <div class="detail-description-box">
+                    ${report.incident_details || 'No additional details provided by the user.'}
+                </div>
             </div>
 
-            <p style="margin-top: 20px;"><strong>Report Description:</strong></p>
-            <div class="detail-description-box">
-                ${report.incident_details || 'No additional details provided by the user.'}
+            <div class="detail-card">
+                <h3><i class="fas fa-map-marked-alt"></i> Location & Media</h3>
+                
+                ${locationInfoHtml}
+                
+                <h4 style="margin-top: 20px; font-weight: 600;">Attached Photo:</h4>
+                ${photoHtml}
             </div>
         </div>
 
-        <div class="detail-card">
-            <h3><i class="fas fa-map-marked-alt"></i> Location & Media</h3>
-            
-            ${locationInfoHtml}
-            
-            <h4 style="margin-top: 20px; font-weight: 600;">Attached Photo:</h4>
-            ${photoHtml}
-        </div>
-
-        <div class="detail-card">
-            <h3><i class="fas fa-user-circle"></i> User Profile (Registrant)</h3>
-            
-            <div class="detail-item">
-                <strong>Full Name:</strong> <span>${profile.fullname || 'N/A'}</span>
+        <div class="profile-details-panel">
+            <div class="detail-card">
+                <h3><i class="fas fa-user-circle"></i> User Profile</h3>
+                
+                ${generateProfileDetails(profile)}
             </div>
-            <div class="detail-item">
-                <strong>Phone Number:</strong> <span>${profile.phone || 'N/A'}</span>
-            </div>
-            <div class="detail-item">
-                <strong>Email Address:</strong> <span>${profile.email || 'N/A'}</span>
-            </div>
-            
         </div>
     `;
 
@@ -444,11 +468,10 @@ async function handleStatusUpdate(e) {
     if (error) {
         console.error('Status update failed:', error);
         showMessage('Failed to update status: ' + error.message, 'error', 5000);
-        dropdown.value = oldStatus; // Revert selection
+        dropdown.value = oldStatus; 
     } else {
         showMessage(`Report status successfully set to ${newStatus}.`, 'success', 3000);
-        dropdown.dataset.currentStatus = newStatus; // Update stored status
-        // A full re-fetch ensures the global ALL_REPORTS state is updated for consistency
+        dropdown.dataset.currentStatus = newStatus; 
         fetchUsersWithReports(); 
     }
 }
@@ -473,7 +496,6 @@ async function handleBroadcast(e) {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
 
-    // Insert message into the 'broadcasts' table
     const { error } = await supabase
         .from('broadcasts') 
         .insert([{ message: message }]); 
@@ -497,7 +519,6 @@ async function handleBroadcast(e) {
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    // Attempt to authenticate first
     const isAuthenticated = checkAuth();
 
     // --- Login Page Setup ---
@@ -511,10 +532,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Dashboard Setup ---
     if (isAuthenticated && window.location.pathname.endsWith('/dashboard.html')) {
         
-        // 1. Initial Content Loading
         fetchUsersWithReports(); 
 
-        // 2. Navigation Setup
         document.querySelectorAll('.navbar a').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -525,7 +544,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Handle Tab Switching
                 document.querySelectorAll('.content-section').forEach(section => {
                     section.classList.remove('active');
                 });
@@ -538,20 +556,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // 3. Report Back and Refresh Button functionality
         const refreshBtn = document.getElementById('refreshReportsBtn');
         if (refreshBtn) {
-            // Refresh always fetches the main user list (Stage 1)
             refreshBtn.addEventListener('click', fetchUsersWithReports);
         }
 
         const backBtn = document.getElementById('backToUsersBtn');
         if (backBtn) {
-            // Back button handles the multi-stage navigation
             backBtn.addEventListener('click', handleBack);
         }
 
-        // 4. Broadcast Form Submission
         const broadcastForm = document.getElementById('broadcastForm');
         if (broadcastForm) {
             broadcastForm.addEventListener('submit', handleBroadcast);
