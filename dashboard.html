@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQ Admin Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        /* Specific styling for the admin view */
+        .content-section {
+            display: none;
+            padding-top: 20px;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .report-header-admin {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <h1>ResQ Admin Dashboard</h1>
+        <nav class="navbar">
+            <a href="#" id="navReports" data-target="reports" class="active"><i class="fas fa-list-alt"></i> User Reports</a>
+            <a href="#" id="navBroadcast" data-target="broadcast"><i class="fas fa-bullhorn"></i> Broadcast</a>
+            <a href="#" id="navLogout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        
+        <section id="reports" class="content-section active">
+            <div class="report-header-admin">
+                <h2>All Submitted Reports</h2>
+                <button id="refreshReportsBtn" class="main-button" style="width: auto; padding: 10px 15px;">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <p>Monitor and update the status of incoming emergency reports in real-time.</p>
+            
+            <div id="reportsGrid" class="reports-grid">
+                </div>
+        </section>
+
+        <section id="broadcast" class="content-section">
+            <div class="broadcast-card">
+                <h2>Send Broadcast Message</h2>
+                <p>Send a critical, low-latency message to all active PWA users.</p>
+                <form id="broadcastForm">
+                    <div class="form-group">
+                        <label for="broadcastMessage">Message:</label>
+                        <textarea id="broadcastMessage" rows="3" placeholder="e.g., Heavy Rainfall! Pls evacuate building" maxlength="200" required></textarea>
+                        <small style="color: #777;">Max 200 characters.</small>
+                    </div>
+                    <button type="submit" class="main-button">
+                        <i class="fas fa-paper-plane"></i> Send Broadcast
+                    </button>
+                </form>
+            </div>
+        </section>
+
+    </div>
+
+    <div id="customMessageBox"></div>
+
+    <script type="module" src="admin.js"></script>
+</body>
+</html>
