@@ -67,15 +67,31 @@ function getPublicPhotoUrl(filePath) {
 }
 
 /**
- * Generates a direct Google Maps URL using latitude and longitude.
- * This is the 'free map alternative' that avoids the API key gray box error.
+ * Generates an OpenStreetMap (OSM) embed URL using iframe. This is free 
+ * and provides a small map preview without an API key.
+ */
+function generateOsmIframe(lat, lon) {
+    if (lat && lon) {
+        // Adjust bounding box (bbox) for a good zoom level around the marker (approx zoom 15)
+        const d = 0.005; 
+        const lon1 = lon - d;
+        const lat1 = lat - d;
+        const lon2 = lon + d;
+        const lat2 = lat + d;
+        
+        // OpenStreetMap embed URL. No API key needed.
+        return `<iframe class="embedded-map"
+                    frameborder="0" scrolling="no" marginheight="0" marginwidth="0" 
+                    src="https://www.openstreetmap.org/export/embed.html?bbox=${lon1},${lat1},${lon2},${lat2}&layer=mapnik&marker=${lat},${lon}"></iframe>`;
+    }
+    return null;
+}
+
+/**
+ * Fallback to a simple Google Maps URL (view only, not embed)
  */
 function generateMapUrl(lat, lon) {
-    if (lat && lon) {
-        // Simple and reliable URL for a place marker on Google Maps
-        return `https://www.google.com/maps/place/${lat},${lon}`;
-    }
-    return '#';
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
 }
 
 
@@ -129,11 +145,6 @@ function handleLogout() {
 
 // --- Stage 0: Back Button Logic ---
 
-/**
- * Handles navigation back through the 3-stage report view.
- * Stage 3 (Detail) -> Stage 2 (User Reports)
- * Stage 2 (User Reports) -> Stage 1 (All Users)
- */
 function handleBack() {
     if (CURRENT_VIEW === 'detail') {
         // Back from Report Detail (Stage 3) to User Reports (Stage 2)
@@ -141,7 +152,7 @@ function handleBack() {
         const report = ALL_REPORTS.find(r => r.id === reportId);
 
         if (report) {
-            const userName = report.profiles?.fullname || `User ID: ${report.user_id.substring(0, 8)}...`;
+            const userName = report.profiles?.fullname || `User`;
             renderUserReports(report.user_id, userName);
         } else {
             renderUserList(); // Fallback to list if report is missing
@@ -225,7 +236,7 @@ function renderUserList() {
     userListEl().innerHTML = UNIQUE_USERS.map(userEntry => {
         const profile = userEntry.profile;
         const userId = userEntry.reports[0].user_id;
-        const fullName = profile.fullname || `User ID: ${userId.substring(0, 8)}...`;
+        const fullName = profile.fullname || `User (${userId.substring(0, 8)}...)`;
         const lastReportDate = new Date(userEntry.lastReportTime).toLocaleString();
 
         return `
@@ -267,7 +278,7 @@ function renderUserReports(userId, userName) {
     reportListEl().classList.remove('hidden');
     reportDetailEl().classList.add('hidden');
     backButtonEl().classList.remove('hidden'); // Show back button
-    titleEl().textContent = userName;
+    titleEl().textContent = `Reports from ${userName}`;
     subtitleEl().textContent = `Viewing ${userReports.length} reports submitted by this user (newest first).`;
 
     reportListEl().innerHTML = userReports.map(report => {
@@ -296,7 +307,7 @@ function renderUserReports(userId, userName) {
     });
 }
 
-// --- Stage 3: Render Report and Profile Details ---
+// --- Stage 3: Render Report and Profile Details (Updated for single column and map embed) ---
 
 function renderReportDetail(reportId) {
     CURRENT_VIEW = 'detail';
@@ -306,25 +317,41 @@ function renderReportDetail(reportId) {
     const profile = report.profiles || {};
     const photoLink = report.photo_url ? getPublicPhotoUrl(report.photo_url) : null;
     const date = new Date(report.timestamp).toLocaleString();
-    const mapUrl = generateMapUrl(report.latitude, report.longitude); // Use corrected URL
+    
+    // Generate map embed and link
+    const mapIframeHtml = generateOsmIframe(report.latitude, report.longitude);
+    const mapUrl = generateMapUrl(report.latitude, report.longitude);
 
     // UI visibility
     userListEl().classList.add('hidden');
     reportListEl().classList.add('hidden');
     reportDetailEl().classList.remove('hidden');
-    backButtonEl().classList.remove('hidden'); // Keep back button visible
-    titleEl().textContent = `Report #${reportId.substring(0, 8)}`;
+    backButtonEl().classList.remove('hidden'); 
+    
+    titleEl().textContent = `Emergency Report Detail`; // Removed ID
     subtitleEl().textContent = `${report.incident_type} reported on ${date}`;
-    reportDetailEl().dataset.reportId = reportId; // Store for back navigation
+    reportDetailEl().dataset.reportId = reportId;
 
-    // Map/Location content
+    // Map/Location content with embedded map
     const locationInfoHtml = report.latitude && report.longitude ? 
-        `<a href="${mapUrl}" target="_blank" class="main-button secondary-button" style="width: auto;"><i class="fas fa-map-marker-alt"></i> View on Google Maps</a>` : 
+        `
+            <div class="detail-item">
+                <strong>Coordinates:</strong> <span>${report.latitude}, ${report.longitude}</span>
+            </div>
+            <div class="map-container" style="margin-top: 20px;">
+                ${mapIframeHtml || `<div class="map-placeholder">Failed to embed map. <a href="${mapUrl}" target="_blank">View on Google Maps</a></div>`}
+            </div>
+        `
+        : 
         `<div class="map-placeholder">Geospatial location data is not available for this report.</div>`;
     
     // Photo content
     const photoHtml = photoLink ? 
-        `<div class="detail-photo-container"><img src="${photoLink}" alt="Incident Photo" class="report-photo"></div><p><a href="${photoLink}" target="_blank" class="text-link">Open Full Image</a></p>` :
+        `<div class="detail-photo-container">
+            <img src="${photoLink}" alt="Incident Photo" class="report-photo">
+            <p style="text-align: center;"><a href="${photoLink}" target="_blank" class="text-link">Open Full Image</a></p>
+        </div>` 
+        :
         `<p class="text-center" style="font-style: italic; color: #777;">No photo provided.</p>`;
 
     // Status dropdown
@@ -337,40 +364,56 @@ function renderReportDetail(reportId) {
         </select>
     `;
 
+    // Construct the single-column, card-based HTML
     reportDetailEl().innerHTML = `
-        <div class="detail-content-section report-details-panel">
-            <h3>Incident Details</h3>
-            <div class="detail-grid">
-                <div><strong>Type:</strong> ${report.incident_type || 'N/A'}</div>
-                <div><strong>Severity:</strong> <span class="severity-tag severity-${report.severity_level?.toLowerCase() || 'low'}">${report.severity_level || 'Low'}</span></div>
-                <div><strong>Timestamp:</strong> ${date}</div>
-                <div><strong>Current Status:</strong> ${statusDropdownHtml}</div>
-            </div>
-
-            <p><strong>Description:</strong> ${report.incident_details || 'No additional details provided.'}</p>
+        
+        <div class="detail-card">
+            <h3><i class="fas fa-exclamation-triangle"></i> Incident Overview</h3>
             
-            <hr>
-
-            <h3>Location & Media</h3>
-            <p><strong>Coordinates:</strong> ${report.latitude || 'N/A'}, ${report.longitude || 'N/A'}</p>
-            ${locationInfoHtml}
-            
-            <div style="margin-top: 20px;">
-                <h4>Attached Photo:</h4>
-                ${photoHtml}
+            <div class="detail-item">
+                <strong>Incident Type:</strong> <span>${report.incident_type || 'N/A'}</span>
             </div>
             
-            <div class="report-detail-footer">
-                <button id="updateStatusBtn" class="main-button hidden" disabled>Update Status</button>
+            <div class="detail-item">
+                <strong>Time Reported:</strong> <span>${date}</span>
+            </div>
+            
+            <div class="detail-item">
+                <strong>Severity Level:</strong> <span class="severity-tag severity-${report.severity_level?.toLowerCase() || 'low'}">${report.severity_level || 'Low'}</span>
+            </div>
+            
+            <div class="detail-item">
+                <strong>Current Status:</strong> ${statusDropdownHtml}
+            </div>
+
+            <p style="margin-top: 20px;"><strong>Report Description:</strong></p>
+            <div class="detail-description-box">
+                ${report.incident_details || 'No additional details provided by the user.'}
             </div>
         </div>
 
-        <div class="detail-content-section profile-details-panel">
-            <h3>Reporter Profile</h3>
-            <p><strong>Full Name:</strong> ${profile.fullname || 'N/A'}</p>
-            <p><strong>Phone:</strong> ${profile.phone || 'N/A'}</p>
-            <p><strong>Email:</strong> ${profile.email || 'N/A'}</p>
-            <p><strong>User ID (Supabase):</strong> <code>${report.user_id}</code></p>
+        <div class="detail-card">
+            <h3><i class="fas fa-map-marked-alt"></i> Location & Media</h3>
+            
+            ${locationInfoHtml}
+            
+            <h4 style="margin-top: 20px; font-weight: 600;">Attached Photo:</h4>
+            ${photoHtml}
+        </div>
+
+        <div class="detail-card">
+            <h3><i class="fas fa-user-circle"></i> User Profile (Registrant)</h3>
+            
+            <div class="detail-item">
+                <strong>Full Name:</strong> <span>${profile.fullname || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Phone Number:</strong> <span>${profile.phone || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Email Address:</strong> <span>${profile.email || 'N/A'}</span>
+            </div>
+            
         </div>
     `;
 
@@ -378,7 +421,7 @@ function renderReportDetail(reportId) {
     reportDetailEl().querySelector('.status-dropdown').addEventListener('change', handleStatusUpdate);
 }
 
-// --- Status Update Logic ---
+// --- Status Update Logic (Keep as is) ---
 async function handleStatusUpdate(e) {
     const dropdown = e.target;
     const reportId = dropdown.dataset.reportId;
@@ -388,7 +431,7 @@ async function handleStatusUpdate(e) {
     if (newStatus === oldStatus) return;
 
     dropdown.disabled = true;
-    showMessage(`Updating status of Report ID ${reportId.substring(0, 8)}... to ${newStatus}...`, 'info', 2000);
+    showMessage(`Updating status of report to ${newStatus}...`, 'info', 2000);
 
     const { error } = await supabase
         .from('emergency_reports')
@@ -403,7 +446,7 @@ async function handleStatusUpdate(e) {
         showMessage('Failed to update status: ' + error.message, 'error', 5000);
         dropdown.value = oldStatus; // Revert selection
     } else {
-        showMessage(`Report ${reportId.substring(0, 8)} status successfully set to ${newStatus}.`, 'success', 3000);
+        showMessage(`Report status successfully set to ${newStatus}.`, 'success', 3000);
         dropdown.dataset.currentStatus = newStatus; // Update stored status
         // A full re-fetch ensures the global ALL_REPORTS state is updated for consistency
         fetchUsersWithReports(); 
@@ -412,7 +455,7 @@ async function handleStatusUpdate(e) {
 
 
 // =================================================================
-// --- Broadcast Module ---
+// --- Broadcast Module (Keep as is) ---
 // =================================================================
 
 async function handleBroadcast(e) {
@@ -449,7 +492,7 @@ async function handleBroadcast(e) {
 
 
 // =================================================================
-// --- Initialization ---
+// --- Initialization (Keep as is) ---
 // =================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
