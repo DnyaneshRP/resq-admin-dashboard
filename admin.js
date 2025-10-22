@@ -2,7 +2,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.44.3/+esm';
 
 // =================================================================
-// YOUR SUPABASE CONFIGURATION 
+// YOUR SUPABASE CONFIGURATION (Ensures connection to the Reports Table)
 // =================================================================
 const SUPABASE_URL = 'https://ayptiehjxxincwsbtysl.supabase.co'; 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5cHRpZWhqeHhpbmN3c2J0eXNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1OTY2NzIsImV4cCI6MjA3NjE3MjY3Mn0.jafnb-fxqWbZm7uJf2g17CgiGzS-MetDY1h0kV-d0vg'; 
@@ -22,7 +22,7 @@ let ALL_REPORTS = [];
 let UNIQUE_USERS = [];
 let CURRENT_VIEW = 'users'; // 'users', 'reports', 'detail'
 
-// DOM Elements
+// DOM Elements utility functions
 const userListEl = () => document.getElementById('userList');
 const reportListEl = () => document.getElementById('reportList');
 const reportDetailEl = () => document.getElementById('reportDetail');
@@ -65,6 +65,19 @@ function getPublicPhotoUrl(filePath) {
         return null;
     }
 }
+
+/**
+ * Generates a direct Google Maps URL using latitude and longitude.
+ * This is the 'free map alternative' that avoids the API key gray box error.
+ */
+function generateMapUrl(lat, lon) {
+    if (lat && lon) {
+        // Simple and reliable URL for a place marker on Google Maps
+        return `https://www.google.com/maps/place/${lat},${lon}`;
+    }
+    return '#';
+}
+
 
 // =================================================================
 // --- Authentication ---
@@ -111,10 +124,36 @@ function handleLogout() {
 }
 
 // =================================================================
-// --- Reports Dashboard Module (UPDATED SORTING LOGIC) ---
+// --- Reports Dashboard Module (3-Stage View) ---
 // =================================================================
 
-// --- Stage 1: Fetch and Render Unique Users ---
+// --- Stage 0: Back Button Logic ---
+
+/**
+ * Handles navigation back through the 3-stage report view.
+ * Stage 3 (Detail) -> Stage 2 (User Reports)
+ * Stage 2 (User Reports) -> Stage 1 (All Users)
+ */
+function handleBack() {
+    if (CURRENT_VIEW === 'detail') {
+        // Back from Report Detail (Stage 3) to User Reports (Stage 2)
+        const reportId = reportDetailEl().dataset.reportId;
+        const report = ALL_REPORTS.find(r => r.id === reportId);
+
+        if (report) {
+            const userName = report.profiles?.fullname || `User ID: ${report.user_id.substring(0, 8)}...`;
+            renderUserReports(report.user_id, userName);
+        } else {
+            renderUserList(); // Fallback to list if report is missing
+        }
+    } else if (CURRENT_VIEW === 'reports') {
+        // Back from User Reports (Stage 2) to All Users (Stage 1)
+        renderUserList(); 
+    }
+}
+
+
+// --- Stage 1: Fetch and Render Unique Users (Initial View) ---
 
 async function fetchUsersWithReports() {
     // Show loading state
@@ -124,7 +163,7 @@ async function fetchUsersWithReports() {
     const { data, error } = await supabase
         .from('emergency_reports')
         .select('*, profiles(*)') 
-        .order('timestamp', { ascending: false }); // **SORT BY TIME**
+        .order('timestamp', { ascending: false });
 
     if (error) {
         console.error('Error fetching reports:', error);
@@ -140,7 +179,6 @@ async function fetchUsersWithReports() {
 
     data.forEach(report => {
         const userId = report.user_id;
-        // Check if the report has a user_id (should always be true)
         if (!userId) return; 
 
         if (!userMap.has(userId)) {
@@ -186,12 +224,12 @@ function renderUserList() {
 
     userListEl().innerHTML = UNIQUE_USERS.map(userEntry => {
         const profile = userEntry.profile;
-        const fullName = profile.fullname || `User ID: ${userEntry.reports[0].user_id.substring(0, 8)}...`;
+        const userId = userEntry.reports[0].user_id;
+        const fullName = profile.fullname || `User ID: ${userId.substring(0, 8)}...`;
         const lastReportDate = new Date(userEntry.lastReportTime).toLocaleString();
-        const firstReport = userEntry.reports[0];
 
         return `
-            <div class="user-card" data-user-id="${firstReport.user_id}" data-user-name="${fullName}">
+            <div class="user-card" data-user-id="${userId}" data-user-name="${fullName}">
                 <div class="user-card-content">
                     <i class="fas fa-user-circle"></i>
                     <div>
@@ -222,24 +260,20 @@ function renderUserReports(userId, userName) {
 
     const userReports = ALL_REPORTS
         .filter(report => report.user_id === userId)
-        // Sort reports for this user by time (newest first)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); 
-
-    if (userReports.length === 0) return; 
 
     // UI visibility
     userListEl().classList.add('hidden');
     reportListEl().classList.remove('hidden');
     reportDetailEl().classList.add('hidden');
-    backButtonEl().classList.remove('hidden');
+    backButtonEl().classList.remove('hidden'); // Show back button
     titleEl().textContent = userName;
     subtitleEl().textContent = `Viewing ${userReports.length} reports submitted by this user (newest first).`;
 
     reportListEl().innerHTML = userReports.map(report => {
         const date = new Date(report.timestamp).toLocaleString();
-        // Correct Google Maps link to open in new tab
-        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`;
-        
+        const mapUrl = generateMapUrl(report.latitude, report.longitude); // Use corrected URL
+
         return `
             <div class="report-list-item" data-report-id="${report.id}">
                 <div class="report-item-header">
@@ -262,111 +296,89 @@ function renderUserReports(userId, userName) {
     });
 }
 
-// --- Stage 3: Render Report and Profile Details (70:30 Split) ---
+// --- Stage 3: Render Report and Profile Details ---
 
 function renderReportDetail(reportId) {
     CURRENT_VIEW = 'detail';
-
     const report = ALL_REPORTS.find(r => r.id === reportId);
     if (!report) return;
 
     const profile = report.profiles || {};
     const photoLink = report.photo_url ? getPublicPhotoUrl(report.photo_url) : null;
-    // Correct Google Maps link for detail view
-    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`;
     const date = new Date(report.timestamp).toLocaleString();
+    const mapUrl = generateMapUrl(report.latitude, report.longitude); // Use corrected URL
 
     // UI visibility
     userListEl().classList.add('hidden');
     reportListEl().classList.add('hidden');
     reportDetailEl().classList.remove('hidden');
-    backButtonEl().classList.remove('hidden');
-    titleEl().textContent = `Report Detail: ${report.incident_type}`;
-    subtitleEl().textContent = `Submitted by: ${profile.fullname || 'Unknown User'}`;
-    
+    backButtonEl().classList.remove('hidden'); // Keep back button visible
+    titleEl().textContent = `Report #${reportId.substring(0, 8)}`;
+    subtitleEl().textContent = `${report.incident_type} reported on ${date}`;
+    reportDetailEl().dataset.reportId = reportId; // Store for back navigation
 
-    // 1. Report Detail Card (70%)
-    const reportCardHTML = `
-        <div class="detail-card report-details-card">
-            <h3><i class="fas fa-file-alt"></i> Incident Details</h3>
-            <hr>
-            <p><strong>Type:</strong> ${report.incident_type || 'N/A'}</p>
-            <p><strong>Severity:</strong> <span class="severity-tag severity-${(report.severity_level || 'low').toLowerCase()}">${report.severity_level || 'N/A'}</span></p>
-            <p><strong>Submitted:</strong> ${date}</p>
-            <p><strong>Details:</strong> ${report.incident_details || 'No additional details provided.'}</p>
+    // Map/Location content
+    const locationInfoHtml = report.latitude && report.longitude ? 
+        `<a href="${mapUrl}" target="_blank" class="main-button secondary-button" style="width: auto;"><i class="fas fa-map-marker-alt"></i> View on Google Maps</a>` : 
+        `<div class="map-placeholder">Geospatial location data is not available for this report.</div>`;
+    
+    // Photo content
+    const photoHtml = photoLink ? 
+        `<div class="detail-photo-container"><img src="${photoLink}" alt="Incident Photo" class="report-photo"></div><p><a href="${photoLink}" target="_blank" class="text-link">Open Full Image</a></p>` :
+        `<p class="text-center" style="font-style: italic; color: #777;">No photo provided.</p>`;
+
+    // Status dropdown
+    const statusOptions = ['Reported', 'Assigned', 'Resolved'];
+    const statusDropdownHtml = `
+        <select class="status-dropdown" data-report-id="${report.id}" data-current-status="${report.status}">
+            ${statusOptions.map(status => 
+                `<option value="${status}" ${report.status === status ? 'selected' : ''}>${status}</option>`
+            ).join('')}
+        </select>
+    `;
+
+    reportDetailEl().innerHTML = `
+        <div class="detail-content-section report-details-panel">
+            <h3>Incident Details</h3>
+            <div class="detail-grid">
+                <div><strong>Type:</strong> ${report.incident_type || 'N/A'}</div>
+                <div><strong>Severity:</strong> <span class="severity-tag severity-${report.severity_level?.toLowerCase() || 'low'}">${report.severity_level || 'Low'}</span></div>
+                <div><strong>Timestamp:</strong> ${date}</div>
+                <div><strong>Current Status:</strong> ${statusDropdownHtml}</div>
+            </div>
+
+            <p><strong>Description:</strong> ${report.incident_details || 'No additional details provided.'}</p>
             
             <hr>
-            <h4><i class="fas fa-map-marker-alt"></i> Location & Image</h4>
 
-            <div class="location-section">
-                <p><strong>Coordinates:</strong> ${report.latitude}, ${report.longitude}</p>
-                <p><strong>Location:</strong> ${report.location_text || 'GPS Coordinates Only'}</p>
-                <div class="embedded-map" onclick="window.open('${mapUrl}', '_blank');">
-                    <img src="https://maps.googleapis.com/maps/api/staticmap?center=${report.latitude},${report.longitude}&zoom=14&size=400x200&maptype=roadmap&markers=color:red%7C${report.latitude},${report.longitude}&key=" alt="Map location" onerror="this.onerror=null;this.src='https://placehold.co/400x200/cccccc/333333?text=Map+Placeholder'">
-                    <span class="map-overlay"><i class="fas fa-external-link-alt"></i> Click to open in Google Maps</span>
-                </div>
+            <h3>Location & Media</h3>
+            <p><strong>Coordinates:</strong> ${report.latitude || 'N/A'}, ${report.longitude || 'N/A'}</p>
+            ${locationInfoHtml}
+            
+            <div style="margin-top: 20px;">
+                <h4>Attached Photo:</h4>
+                ${photoHtml}
             </div>
-
-            ${photoLink ? `
-                <div class="image-section">
-                    <p><strong>Attached Photo:</strong></p>
-                    <a href="${photoLink}" target="_blank">
-                        <img src="${photoLink}" alt="Attached Emergency Photo" class="report-image" onerror="this.onerror=null;this.src='https://placehold.co/200x150/ff4d4d/ffffff?text=Image+Load+Failed'">
-                    </a>
-                </div>
-            ` : '<p>No photo attached to this report.</p>'}
-
-            <hr>
-            <div class="status-update-section">
-                <label>Update Status:</label>
-                <select class="status-dropdown" data-report-id="${report.id}" data-current-status="${report.status}">
-                    <option value="Reported" ${report.status === 'Reported' ? 'selected' : ''}>Reported</option>
-                    <option value="Assigned" ${report.status === 'Assigned' ? 'selected' : ''}>Assigned</option>
-                    <option value="Resolved" ${report.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
-                </select>
+            
+            <div class="report-detail-footer">
+                <button id="updateStatusBtn" class="main-button hidden" disabled>Update Status</button>
             </div>
         </div>
-    `;
 
-    // 2. Profile Details Card (30%)
-    const profileCardHTML = `
-        <div class="detail-card profile-details-card">
-            <h3><i class="fas fa-user"></i> User Profile</h3>
-            <hr>
-            <p><strong>Name:</strong> ${profile.fullname || 'N/A'}</p>
-            <p><strong>Email:</strong> ${profile.email || 'N/A'}</p>
+        <div class="detail-content-section profile-details-panel">
+            <h3>Reporter Profile</h3>
+            <p><strong>Full Name:</strong> ${profile.fullname || 'N/A'}</p>
             <p><strong>Phone:</strong> ${profile.phone || 'N/A'}</p>
-            <p><strong>Address:</strong> ${profile.address ? `${profile.address}, ${profile.city} - ${profile.pincode}` : 'N/A'}</p>
-
-            <hr>
-            <h4><i class="fas fa-suitcase-medical"></i> Medical Info</h4>
-            <p><strong>Medical Details:</strong> ${profile.medical || 'None specified'}</p>
-
-            <hr>
-            <h4><i class="fas fa-phone-volume"></i> Emergency Contacts</h4>
-            <p><strong>Contact 1:</strong> ${profile.emergency1 || 'N/A'}</p>
-            <p><strong>Contact 2:</strong> ${profile.emergency2 || 'N/A'}</p>
+            <p><strong>Email:</strong> ${profile.email || 'N/A'}</p>
+            <p><strong>User ID (Supabase):</strong> <code>${report.user_id}</code></p>
         </div>
     `;
 
-    // Combine into 70:30 split
-    reportDetailEl().innerHTML = `
-        <div class="report-profile-grid">
-            ${reportCardHTML}
-            ${profileCardHTML}
-        </div>
-    `;
-
-    // Attach listener to the new dropdown
-    const dropdown = reportDetailEl().querySelector('.status-dropdown');
-    if (dropdown) {
-        dropdown.addEventListener('change', handleStatusUpdate);
-    }
+    // Attach listener to dropdown
+    reportDetailEl().querySelector('.status-dropdown').addEventListener('change', handleStatusUpdate);
 }
 
-
-// --- Status Update Handler ---
-
+// --- Status Update Logic ---
 async function handleStatusUpdate(e) {
     const dropdown = e.target;
     const reportId = dropdown.dataset.reportId;
@@ -376,13 +388,13 @@ async function handleStatusUpdate(e) {
     if (newStatus === oldStatus) return;
 
     dropdown.disabled = true;
-    showMessage(`Updating status of Report ID ${reportId} to ${newStatus}...`, 'info', 2000);
+    showMessage(`Updating status of Report ID ${reportId.substring(0, 8)}... to ${newStatus}...`, 'info', 2000);
 
     const { error } = await supabase
         .from('emergency_reports')
         .update({ status: newStatus })
         .eq('id', reportId)
-        .select(); 
+        .select();
 
     dropdown.disabled = false;
 
@@ -391,41 +403,13 @@ async function handleStatusUpdate(e) {
         showMessage('Failed to update status: ' + error.message, 'error', 5000);
         dropdown.value = oldStatus; // Revert selection
     } else {
-        showMessage(`Report ${reportId} status successfully set to ${newStatus}.`, 'success', 3000);
+        showMessage(`Report ${reportId.substring(0, 8)} status successfully set to ${newStatus}.`, 'success', 3000);
         dropdown.dataset.currentStatus = newStatus; // Update stored status
-        
-        // Find and update the report in the global list to ensure UI refresh consistency
-        const updatedReportIndex = ALL_REPORTS.findIndex(r => r.id === reportId);
-        if (updatedReportIndex !== -1) {
-             ALL_REPORTS[updatedReportIndex].status = newStatus;
-        }
-
-        // Re-render the current view to reflect the new status badge color/text immediately
-        if (CURRENT_VIEW === 'detail') {
-             renderReportDetail(reportId);
-        } else if (CURRENT_VIEW === 'reports') {
-            const currentUserId = ALL_REPORTS[updatedReportIndex].user_id;
-            const currentUserName = ALL_REPORTS[updatedReportIndex].profiles.fullname || 'Unknown User';
-            renderUserReports(currentUserId, currentUserName);
-        }
+        // A full re-fetch ensures the global ALL_REPORTS state is updated for consistency
+        fetchUsersWithReports(); 
     }
 }
 
-
-// --- Navigation and Back Button Logic ---
-
-function setupNavigation() {
-    const backButton = backButtonEl();
-    backButton.addEventListener('click', () => {
-        if (CURRENT_VIEW === 'reports' || CURRENT_VIEW === 'detail') {
-            // If in reports list or detail, go back to user list
-            renderUserList();
-        }
-    });
-
-    // Initial fetch
-    fetchUsersWithReports();
-}
 
 // =================================================================
 // --- Broadcast Module ---
@@ -484,10 +468,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Dashboard Setup ---
     if (isAuthenticated && window.location.pathname.endsWith('/dashboard.html')) {
         
-        // 1. Initial Content Loading & Navigation Setup
-        setupNavigation(); 
+        // 1. Initial Content Loading
+        fetchUsersWithReports(); 
 
-        // 2. Tab Switching
+        // 2. Navigation Setup
         document.querySelectorAll('.navbar a').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -511,10 +495,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // 3. Report Refresh Button
+        // 3. Report Back and Refresh Button functionality
         const refreshBtn = document.getElementById('refreshReportsBtn');
         if (refreshBtn) {
+            // Refresh always fetches the main user list (Stage 1)
             refreshBtn.addEventListener('click', fetchUsersWithReports);
+        }
+
+        const backBtn = document.getElementById('backToUsersBtn');
+        if (backBtn) {
+            // Back button handles the multi-stage navigation
+            backBtn.addEventListener('click', handleBack);
         }
 
         // 4. Broadcast Form Submission

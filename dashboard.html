@@ -15,11 +15,6 @@
         .content-section.active {
             display: block;
         }
-        .report-header-admin {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
     </style>
 </head>
 <body>
@@ -39,8 +34,10 @@
             <div class="report-header-admin">
                 <h2 id="reportPageTitle">User Reports Overview</h2>
                 <div style="display: flex; gap: 10px;">
-                    <button id="backToUsersBtn" class="secondary-button hidden" style="width: auto; padding: 10px 15px;"><i class="fas fa-arrow-left"></i> Back</button>
-                    <button id="refreshReportsBtn" class="main-button" style="width: auto; padding: 10px 15px;">
+                    <button id="backToUsersBtn" class="secondary-button hidden" style="width: auto; padding: 10px 15px;">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
+                    <button id="refreshReportsBtn" class="secondary-button" style="width: auto; padding: 10px 15px;">
                         <i class="fas fa-sync-alt"></i> Refresh
                     </button>
                 </div>
@@ -55,6 +52,7 @@
 
             <div id="reportDetail" class="report-detail-split hidden">
                 </div>
+
         </section>
 
         <section id="broadcast" class="content-section">
