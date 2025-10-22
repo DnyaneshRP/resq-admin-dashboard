@@ -122,7 +122,7 @@ input:focus, textarea:focus, select:focus {
 /* --- Reports Dashboard --- */
 .reports-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); /* Increased card size */
     gap: 20px;
     margin-top: 20px;
 }
@@ -159,20 +159,39 @@ input:focus, textarea:focus, select:focus {
     border-top: 1px solid var(--border-color);
 }
 
+.text-link {
+    color: var(--secondary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+/* --- Status Tags (CUSTOM STYLES) --- */
+
 .status-tag {
     font-weight: 700;
     padding: 5px 10px;
     border-radius: 6px;
     font-size: 0.85em;
+    text-transform: uppercase;
+    margin-left: 10px;
 }
-.status-tag.Reported { background-color: #ffe0b2; color: #FF9800; }
-.status-tag.Assigned { background-color: #bbdefb; color: var(--secondary-color); }
-.status-tag.Resolved { background-color: #c8e6c9; color: #4CAF50; }
 
-.text-link {
-    color: var(--secondary-color);
-    text-decoration: none;
-    font-weight: 600;
+/* Reported Status (Blue Badge) */
+.status-tag.Reported { 
+    background-color: #1e88e5; /* Blue */
+    color: white; 
+}
+
+/* Assigned Status (Amber Badge) */
+.status-tag.Assigned { 
+    background-color: #ffc107; /* Amber */
+    color: #333; /* Dark text for contrast */
+}
+
+/* Resolved Status (Green Badge) */
+.status-tag.Resolved { 
+    background-color: #388e3c; /* Green */
+    color: white; 
 }
 
 /* --- Broadcast Module --- */

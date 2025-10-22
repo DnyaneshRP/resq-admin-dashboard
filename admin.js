@@ -104,10 +104,10 @@ function renderReports(reports) {
             ? getPublicPhotoUrl(report.photo_url)
             : null;
         
-        // FIX 1: Correct Google Maps link syntax
-        const mapUrl = `https://maps.google.com/maps?q=${report.latitude},${report.longitude}`;
+        // Correct Google Maps link syntax
+        const mapUrl = `http://maps.google.com/maps?q=${report.latitude},${report.longitude}`;
         
-        // FIX 2: Extract Profile Data (Nested object from the join)
+        // Extract Profile Data (Nested object from the join)
         const profile = report.profiles || {}; 
         
         return `
@@ -170,7 +170,7 @@ async function fetchReports() {
 
     grid.innerHTML = '<div class="text-center" style="grid-column: 1 / -1; padding: 50px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--primary-color);"></i><p>Loading reports...</p></div>';
 
-    // FIX 4: Use '*, profiles(*)' to fetch report details AND join the associated user profile data
+    // Use '*, profiles(*)' to fetch report details AND join the associated user profile data
     const { data, error } = await supabase
         .from('emergency_reports')
         .select('*, profiles(*)') 
