@@ -7,6 +7,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const SUPABASE_URL = 'https://ayptiehjxxincwsbtysl.supabase.co'; 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5cHRpZWhqeHhpbmN3c2J0eXNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1OTY2NzIsImV4cCI6MjA3NjE3MjY3Mn0.jafnb-fxqWbZm7uJf2g17CgiGzS-MetDY1h0kV-d0vg'; 
 const REPORT_BUCKET = 'emergency_photos'; 
+const BROADCASTS_TABLE = 'broadcasts'; // <<< NEW CONSTANT
 // =================================================================
 
 // --- Initialize Supabase Client ---
@@ -478,7 +479,7 @@ async function handleStatusUpdate(e) {
 
 
 // =================================================================
-// --- Broadcast Module (Keep as is) ---
+// --- Broadcast Module (UPDATED) ---
 // =================================================================
 
 async function handleBroadcast(e) {
@@ -496,9 +497,11 @@ async function handleBroadcast(e) {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
 
+    // *** Using the new BROADCASTS_TABLE constant. Payload matches your schema (id, message, timestamp) ***
     const { error } = await supabase
-        .from('broadcasts') 
+        .from(BROADCASTS_TABLE) 
         .insert([{ message: message }]); 
+    // **************************************************************************************************
 
     submitBtn.disabled = false;
     submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Broadcast';
