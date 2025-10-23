@@ -7,6 +7,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const SUPABASE_URL = 'https://ayptiehjxxincwsbtysl.supabase.co'; 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5cHRpZWhqeHhpbmN3c2J0eXNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1OTY2NzIsImV4cCI6MjA3NjE3MjY3Mn0.jafnb-fxqWbZm7uJf2g17CgiGzS-MetDY1h0kV-d0vg'; 
 const REPORT_BUCKET = 'emergency_photos'; 
+const BROADCASTS_TABLE = 'broadcasts'; // Added back for completeness
 // =================================================================
 
 // --- Initialize Supabase Client ---
@@ -149,7 +150,8 @@ function handleLogout() {
 function handleBack() {
     if (CURRENT_VIEW === 'detail') {
         const reportId = reportDetailEl().dataset.reportId;
-        const report = ALL_REPORTS.find(r => r.id === reportId);
+        // Need to find the report to get the user ID for the previous view
+        const report = ALL_REPORTS.find(r => r.id == reportId);
 
         if (report) {
             const userName = report.profiles?.fullname || `User`;
@@ -167,6 +169,7 @@ function handleBack() {
 async function fetchUsersWithReports() {
     userListEl().innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> Loading user reports...</div>';
     
+    // NOTE: Assuming 'emergency_reports' is the correct table name from previous context
     const { data, error } = await supabase
         .from('emergency_reports')
         .select('*, profiles(*)') 
@@ -299,18 +302,37 @@ function renderUserReports(userId, userName) {
 
 /**
  * Generates HTML for profile details, excluding any IDs.
+ * FIX: Prioritizes 'fullname' field to display first.
  */
 function generateProfileDetails(profile) {
-    const excludedKeys = ['id', 'user_id', 'created_at']; 
+    const excludedKeys = ['id', 'user_id', 'created_at', 'fullname', 'full_name']; 
     
-    // Get all keys from the profile object
-    const allKeys = Object.keys(profile);
-    
+    // CRITICAL FIX: Explicitly check for 'fullname' key (case-insensitive)
+    const nameKeys = Object.keys(profile).filter(key => 
+        key.toLowerCase() === 'fullname' || key.toLowerCase() === 'full_name'
+    );
+    const fullNameKey = nameKeys.length > 0 ? nameKeys[0] : null;
+
+    // Get all other keys, excluding internal keys and the name key
+    const otherKeys = Object.keys(profile).filter(key => 
+        !excludedKeys.includes(key) && key !== fullNameKey && profile[key]
+    );
+
     let html = '';
+
+    // 1. Display Full Name first
+    if (fullNameKey && profile[fullNameKey]) {
+        html += `
+            <div class="detail-item">
+                <strong>Fullname:</strong> <span style="font-weight: 600; color: #d32f2f;">${profile[fullNameKey]}</span>
+            </div>
+        `;
+    }
     
-    allKeys.forEach(key => {
+    // 2. Display the rest of the details
+    otherKeys.forEach(key => {
         // Exclude internal keys
-        if (excludedKeys.includes(key) || !profile[key]) return;
+        if (!profile[key]) return;
 
         // Convert key name (e.g., 'full_name') to a clean label (e.g., 'Full Name')
         const label = key.split('_')
@@ -336,7 +358,7 @@ function generateProfileDetails(profile) {
 
 function renderReportDetail(reportId) {
     CURRENT_VIEW = 'detail';
-    const report = ALL_REPORTS.find(r => r.id === reportId);
+    const report = ALL_REPORTS.find(r => r.id == reportId);
     if (!report) return;
 
     const profile = report.profiles || {};
@@ -478,7 +500,7 @@ async function handleStatusUpdate(e) {
 
 
 // =================================================================
-// --- Broadcast Module (Keep as is) ---
+// --- Broadcast Module (Kept from previous state) ---
 // =================================================================
 
 async function handleBroadcast(e) {
@@ -496,9 +518,10 @@ async function handleBroadcast(e) {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
 
+    // NOTE: Assuming 'broadcasts' table exists and accepts a 'message' column.
     const { error } = await supabase
-        .from('broadcasts') 
-        .insert([{ message: message }]); 
+        .from(BROADCASTS_TABLE) 
+        .insert([{ message: message, title: 'CRITICAL ALERT' }]); 
 
     submitBtn.disabled = false;
     submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Broadcast';
