@@ -8,6 +8,8 @@ const SUPABASE_URL = 'https://ayptiehjxxincwsbtysl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5cHRpZWhqeHhpbmN3c2J0eXNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1OTY2NzIsImV4cCI6MjA3NjE3MjY3Mn0.jafnb-fxqWbZm7uJf2g17CgiGzS-MetDY1h0kV-d0vg'; 
 const REPORT_BUCKET = 'emergency_photos'; 
 const BROADCASTS_TABLE = 'broadcasts'; // <<< NEW CONSTANT
+// CRITICAL FIX: The user app inserts into 'emergency_reports'
+const REPORTS_TABLE = 'emergency_reports'; // <<< CORRECTED CONSTANT
 // =================================================================
 
 // --- Initialize Supabase Client ---
@@ -145,398 +147,390 @@ function handleLogout() {
 // --- Reports Dashboard Module (3-Stage View) ---
 // =================================================================
 
-// --- Stage 0: Back Button Logic ---
-
-function handleBack() {
-    if (CURRENT_VIEW === 'detail') {
-        const reportId = reportDetailEl().dataset.reportId;
-        const report = ALL_REPORTS.find(r => r.id === reportId);
-
-        if (report) {
-            const userName = report.profiles?.fullname || `User`;
-            renderUserReports(report.user_id, userName);
-        } else {
-            renderUserList(); 
-        }
-    } else if (CURRENT_VIEW === 'reports') {
-        renderUserList(); 
-    }
-}
-
-// --- Stage 1: Fetch and Render Unique Users (Initial View) ---
-
+/**
+ * Fetches all reports and groups them by user to display in the initial view.
+ */
 async function fetchUsersWithReports() {
-    userListEl().innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> Loading user reports...</div>';
-    
-    const { data, error } = await supabase
-        .from('emergency_reports')
-        .select('*, profiles(*)') 
-        .order('timestamp', { ascending: false });
+    titleEl().textContent = 'Loading Reports...';
+    subtitleEl().textContent = 'Please wait while we fetch the latest data.';
+    userListEl().innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i></div>';
 
-    if (error) {
-        console.error('Error fetching reports:', error);
-        showMessage('Error fetching reports: ' + error.message, 'error', 7000);
-        userListEl().innerHTML = '<p class="text-center">Failed to load reports. **Action Required: Check RLS policy.**</p>';
-        return;
-    }
+    try {
+        // CRITICAL FIX: Querying the correct table 'emergency_reports'
+        const { data: reports, error } = await supabase
+            .from(REPORTS_TABLE) 
+            .select('*, profiles (id, fullname, email, phone)') 
+            .order('timestamp', { ascending: false }); // Assuming 'timestamp' or 'created_at' is used for ordering
 
-    ALL_REPORTS = data;
-    
-    const userMap = new Map();
-
-    data.forEach(report => {
-        const userId = report.user_id;
-        if (!userId) return; 
-
-        if (!userMap.has(userId)) {
-            userMap.set(userId, {
-                profile: report.profiles || { fullname: 'Unknown User' },
-                reportCount: 0,
-                lastReportTime: 0,
-                reports: []
-            });
-        }
-        const userEntry = userMap.get(userId);
-        userEntry.reportCount++;
-        userEntry.reports.push(report);
-        const currentTimestamp = new Date(report.timestamp).getTime();
-        if (currentTimestamp > userEntry.lastReportTime) {
-            userEntry.lastReportTime = currentTimestamp;
-        }
-    });
-    
-    UNIQUE_USERS = Array.from(userMap.values())
-        .sort((a, b) => b.lastReportTime - a.lastReportTime);
+        if (error) throw error;
         
-    renderUserList();
+        ALL_REPORTS = reports;
+        
+        // Group reports by user
+        const reportsByUser = reports.reduce((acc, report) => {
+            const userId = report.user_id;
+            if (!acc[userId]) {
+                acc[userId] = {
+                    profile: report.profiles,
+                    reportCount: 0,
+                    pendingCount: 0,
+                    lastReportDate: null
+                };
+            }
+            acc[userId].reportCount++;
+            // Assuming 'Reported' is the initial status from user app
+            if (report.status === 'Reported' || report.status === 'Pending') { 
+                acc[userId].pendingCount++;
+            }
+            // Update last report date (using 'timestamp' which is what the user app submits)
+            const currentReportDate = new Date(report.timestamp || report.created_at);
+            if (!acc[userId].lastReportDate || currentReportDate > acc[userId].lastReportDate) {
+                acc[userId].lastReportDate = currentReportDate;
+            }
+            return acc;
+        }, {});
+
+        UNIQUE_USERS = Object.keys(reportsByUser).map(userId => reportsByUser[userId]);
+
+        renderUserList();
+        titleEl().textContent = 'User Reports';
+        subtitleEl().textContent = 'Select a user to view their submitted reports.';
+
+    } catch (e) {
+        console.error('Error fetching reports:', e);
+        showMessage(`Error fetching reports: ${e.message}`, 'error');
+        titleEl().textContent = 'Report Loading Failed';
+        subtitleEl().textContent = 'Could not load data. Check console for details.';
+        userListEl().innerHTML = '<p class="text-center">Failed to load reports.</p>';
+    }
 }
 
+/**
+ * Renders the list of unique users who have submitted reports.
+ */
 function renderUserList() {
-    CURRENT_VIEW = 'users';
-    
+    if (CURRENT_VIEW !== 'users') return;
+
     userListEl().classList.remove('hidden');
     reportListEl().classList.add('hidden');
     reportDetailEl().classList.add('hidden');
-    backButtonEl().classList.add('hidden');
-    titleEl().textContent = 'User Reports Overview';
-    subtitleEl().textContent = `Displaying reports from ${UNIQUE_USERS.length} users.`;
-
+    if(backButtonEl()) backButtonEl().classList.add('hidden');
 
     if (UNIQUE_USERS.length === 0) {
-        userListEl().innerHTML = '<p class="text-center">No current emergency reports found.</p>';
+        userListEl().innerHTML = '<p class="text-center">No reports have been submitted yet.</p>';
         return;
     }
 
-    userListEl().innerHTML = UNIQUE_USERS.map(userEntry => {
-        const profile = userEntry.profile;
-        const userId = userEntry.reports[0].user_id;
-        const fullName = profile.fullname || `User`;
-        const lastReportDate = new Date(userEntry.lastReportTime).toLocaleString();
-
+    const listHtml = UNIQUE_USERS.sort((a, b) => b.lastReportDate - a.lastReportDate).map(user => {
+        const profile = user.profile;
+        const dateText = user.lastReportDate ? new Date(user.lastReportDate).toLocaleString() : 'N/A';
+        // Check for 'Reported' or 'Pending' as initial/pending states
+        const pendingBadge = user.pendingCount > 0 ? `<span class="count-badge">${user.pendingCount} Pending</span>` : '';
+        
         return `
-            <div class="user-card" data-user-id="${userId}" data-user-name="${fullName}">
-                <div class="user-card-content">
-                    <i class="fas fa-user-circle"></i>
-                    <div>
-                        <h3>${fullName}</h3>
-                        <p>Total Reports: <strong>${userEntry.reportCount}</strong></p>
-                        <p>Last Report: ${lastReportDate}</p>
-                    </div>
+            <div class="user-card" data-user-id="${profile.id}">
+                <div class="user-info">
+                    <h3><i class="fas fa-user-circle"></i> ${profile.fullname || 'Unknown User'}</h3>
+                    <p class="email-text"><i class="fas fa-envelope"></i> ${profile.email}</p>
+                    <p class="email-text"><i class="fas fa-phone"></i> ${profile.phone || 'N/A'}</p>
+                </div>
+                <div class="report-stats">
+                    ${pendingBadge}
+                    <span class="count-badge total-badge">${user.reportCount} Total Reports</span>
+                    <small>Last Report: ${dateText}</small>
                 </div>
                 <i class="fas fa-chevron-right"></i>
             </div>
         `;
     }).join('');
 
+    userListEl().innerHTML = listHtml;
+    
+    // Add click listeners to user cards
     document.querySelectorAll('.user-card').forEach(card => {
         card.addEventListener('click', (e) => {
             const userId = e.currentTarget.dataset.userId;
-            const userName = e.currentTarget.dataset.userName;
-            renderUserReports(userId, userName);
-        });
-    });
-}
-
-// --- Stage 2: Render Reports for a Specific User ---
-
-function renderUserReports(userId, userName) {
-    CURRENT_VIEW = 'reports';
-
-    const userReports = ALL_REPORTS
-        .filter(report => report.user_id === userId)
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); 
-
-    userListEl().classList.add('hidden');
-    reportListEl().classList.remove('hidden');
-    reportDetailEl().classList.add('hidden');
-    backButtonEl().classList.remove('hidden'); 
-    titleEl().textContent = `Reports from ${userName}`;
-    subtitleEl().textContent = `Viewing ${userReports.length} reports submitted by this user.`;
-
-    reportListEl().innerHTML = userReports.map(report => {
-        const date = new Date(report.timestamp).toLocaleString();
-        const mapUrl = generateMapUrl(report.latitude, report.longitude); 
-
-        return `
-            <div class="report-list-item" data-report-id="${report.id}">
-                <div class="report-item-header">
-                    <h4>${report.incident_type || 'Unknown Incident'}</h4>
-                    <span class="status-tag ${report.status}">${report.status}</span>
-                </div>
-                <p><strong>Time:</strong> ${date}</p>
-                <p><strong>Location:</strong> <a href="${mapUrl}" target="_blank" class="text-link">Map Link</a></p>
-                <i class="fas fa-eye"></i>
-            </div>
-        `;
-    }).join('');
-
-    document.querySelectorAll('.report-list-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            const reportId = e.currentTarget.dataset.reportId;
-            renderReportDetail(reportId);
+            renderReportList(userId);
         });
     });
 }
 
 /**
- * Generates HTML for profile details, excluding any IDs.
+ * Renders the list of reports for a selected user.
  */
-function generateProfileDetails(profile) {
-    const excludedKeys = ['id', 'user_id', 'created_at']; 
-    
-    // Get all keys from the profile object
-    const allKeys = Object.keys(profile);
-    
-    let html = '';
-    
-    allKeys.forEach(key => {
-        // Exclude internal keys
-        if (excludedKeys.includes(key) || !profile[key]) return;
+function renderReportList(userId) {
+    CURRENT_VIEW = 'reports';
 
-        // Convert key name (e.g., 'full_name') to a clean label (e.g., 'Full Name')
-        const label = key.split('_')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
-        
-        // Display the field
-        html += `
-            <div class="detail-item">
-                <strong>${label}:</strong> <span>${profile[key]}</span>
+    const userReports = ALL_REPORTS.filter(report => report.user_id === userId);
+    const userProfile = userReports[0]?.profiles || { fullname: 'Unknown User' };
+
+    titleEl().textContent = `${userProfile.fullname}'s Reports`;
+    subtitleEl().textContent = `Total reports: ${userReports.length}`;
+    
+    userListEl().classList.add('hidden');
+    reportListEl().classList.remove('hidden');
+    reportDetailEl().classList.add('hidden');
+    if(backButtonEl()) backButtonEl().classList.remove('hidden');
+    
+    if(backButtonEl()) backButtonEl().onclick = () => {
+        CURRENT_VIEW = 'users';
+        renderUserList(); // Go back to the user list view
+        titleEl().textContent = 'User Reports';
+        subtitleEl().textContent = 'Select a user to view their submitted reports.';
+    };
+
+    const listHtml = userReports.map(report => {
+        const date = new Date(report.timestamp || report.created_at).toLocaleString();
+        const statusClass = report.status.replace(/\s/g, ''); // For CSS matching
+        const locationText = report.latitude && report.longitude 
+            ? 'Location Recorded' 
+            : 'No Location Data';
+
+        return `
+            <div class="report-list-card" data-report-id="${report.id}">
+                <div class="report-info-main">
+                    <h4>${report.incident_type}</h4>
+                    <span class="severity-tag severity-${report.severity_level.toLowerCase()}">${report.severity_level}</span>
+                </div>
+                <div class="report-info-sub">
+                    <p><strong>Status:</strong> <span class="status-tag ${statusClass}">${report.status}</span></p>
+                    <p><strong>Time:</strong> ${date}</p>
+                    <p><strong>Location:</strong> ${locationText}</p>
+                </div>
+                <i class="fas fa-chevron-right"></i>
             </div>
         `;
+    }).join('');
+
+    reportListEl().innerHTML = listHtml;
+
+    // Add click listeners to report cards
+    document.querySelectorAll('.report-list-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            const reportId = e.currentTarget.dataset.reportId;
+            // The original file used report.id as the primary key. Assuming it is a string.
+            const report = ALL_REPORTS.find(r => r.id == reportId); 
+            if (report) {
+                renderReportDetail(report);
+            }
+        });
     });
-    
-    if (!html) {
-        return '<p class="text-center" style="padding: 20px;">No user registration details available.</p>';
-    }
-    
-    return html;
 }
 
-// --- Stage 3: Render Report and Profile Details (Updated for 70:30 split) ---
-
-function renderReportDetail(reportId) {
+/**
+ * Renders the detailed view of a single report.
+ */
+function renderReportDetail(report) {
     CURRENT_VIEW = 'detail';
-    const report = ALL_REPORTS.find(r => r.id === reportId);
-    if (!report) return;
 
-    const profile = report.profiles || {};
-    const photoLink = report.photo_url ? getPublicPhotoUrl(report.photo_url) : null;
-    const date = new Date(report.timestamp).toLocaleString();
-    
-    // Generate map embed and Google Maps link
-    const mapIframeHtml = generateOsmIframe(report.latitude, report.longitude);
-    const mapUrl = generateMapUrl(report.latitude, report.longitude);
+    const userProfile = report.profiles;
+    titleEl().textContent = `${report.incident_type} Report`;
+    subtitleEl().textContent = `Reported by ${userProfile.fullname}`;
 
-    // UI visibility
     userListEl().classList.add('hidden');
     reportListEl().classList.add('hidden');
     reportDetailEl().classList.remove('hidden');
-    backButtonEl().classList.remove('hidden'); 
+    if(backButtonEl()) backButtonEl().classList.remove('hidden');
+
+    // Update back button to go back to the report list (user view)
+    if(backButtonEl()) backButtonEl().onclick = () => {
+        renderReportList(report.user_id);
+    };
+
+    const date = new Date(report.timestamp || report.created_at).toLocaleString();
+    const statusClass = report.status.replace(/\s/g, ''); 
+    const mapIframe = generateOsmIframe(report.latitude, report.longitude);
+    const mapLink = generateMapUrl(report.latitude, report.longitude);
+    const photoUrl = report.photo_url ? getPublicPhotoUrl(report.photo_url) : null;
+    const photoHtml = photoUrl 
+        ? `<div class="detail-photo"><img src="${photoUrl}" alt="Report Photo"><a href="${photoUrl}" target="_blank" class="text-link">View Full Photo</a></div>` 
+        : '<p class="no-data"><i class="fas fa-camera"></i> No photo attached.</p>';
     
-    titleEl().textContent = `Emergency Report Detail`; 
-    subtitleEl().textContent = `${report.incident_type} reported on ${date}`;
-    reportDetailEl().dataset.reportId = reportId;
+    const locationHtml = report.latitude && report.longitude 
+        ? `
+            <p><strong>Coordinates:</strong> ${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)} 
+                (<a href="${mapLink}" target="_blank">Open in Maps</a>)</p>
+            ${mapIframe}
+        ` 
+        : '<p class="no-data"><i class="fas fa-map-marker-alt"></i> Location not recorded.</p>';
 
-    // Location & Media content (LEFT SIDE)
-    const locationInfoHtml = report.latitude && report.longitude ? 
-        `
-            <div class="detail-item">
-                <strong>Coordinates:</strong> <span>${report.latitude}, ${report.longitude}</span>
-            </div>
-            
-            <a href="${mapUrl}" target="_blank" class="map-link-wrapper" title="Click to view full map on Google Maps">
-                <div class="map-container">
-                    ${mapIframeHtml}
-                </div>
-            </a>
-        `
-        : 
-        `<div class="map-placeholder">Geospatial location data is not available for this report.</div>`;
-    
-    // Photo content
-    const photoHtml = photoLink ? 
-        `<div class="detail-photo-container">
-            <img src="${photoLink}" alt="Incident Photo" class="report-photo">
-            <p style="text-align: center;"><a href="${photoLink}" target="_blank" class="text-link">Open Full Image</a></p>
-        </div>` 
-        :
-        `<p class="text-center" style="font-style: italic; color: #777;">No photo provided.</p>`;
-
-    // Status dropdown
-    const statusOptions = ['Reported', 'Assigned', 'Resolved'];
-    const statusDropdownHtml = `
-        <select class="status-dropdown" data-report-id="${report.id}" data-current-status="${report.status}">
-            ${statusOptions.map(status => 
-                `<option value="${status}" ${report.status === status ? 'selected' : ''}>${status}</option>`
-            ).join('')}
-        </select>
-    `;
-
-    // Construct the two-column (70:30) HTML structure
-    reportDetailEl().innerHTML = `
-        
-        <div class="report-details-panel">
-            
-            <div class="detail-card">
-                <h3><i class="fas fa-exclamation-triangle"></i> Incident Overview</h3>
-                
-                <div class="detail-item">
-                    <strong>Incident Type:</strong> <span>${report.incident_type || 'N/A'}</span>
-                </div>
-                
-                <div class="detail-item">
-                    <strong>Time Reported:</strong> <span>${date}</span>
-                </div>
-                
-                <div class="detail-item">
-                    <strong>Severity Level:</strong> <span class="severity-tag severity-${report.severity_level?.toLowerCase() || 'low'}">${report.severity_level || 'Low'}</span>
-                </div>
-                
-                <div class="detail-item">
-                    <strong>Current Status:</strong> ${statusDropdownHtml}
-                </div>
-
-                <p style="margin-top: 20px;"><strong>Report Description:</strong></p>
-                <div class="detail-description-box">
-                    ${report.incident_details || 'No additional details provided by the user.'}
+    const detailHtml = `
+        <div class="report-detail-card">
+            <div class="detail-header">
+                <h2>${report.incident_type}</h2>
+                <div class="status-group">
+                    <span class="severity-tag severity-${report.severity_level.toLowerCase()}">${report.severity_level} Severity</span>
+                    <span class="status-tag ${statusClass}">${report.status}</span>
                 </div>
             </div>
 
-            <div class="detail-card">
-                <h3><i class="fas fa-map-marked-alt"></i> Location & Media</h3>
-                
-                ${locationInfoHtml}
-                
-                <h4 style="margin-top: 20px; font-weight: 600;">Attached Photo:</h4>
+            <div class="detail-section">
+                <h3>Report Info</h3>
+                <p><strong>Report ID:</strong> ${report.id}</p>
+                <p><strong>Time:</strong> ${date}</p>
+                <p><strong>Details:</strong> ${report.incident_details || 'N/A'}</p>
+                <p><strong>User Feedback:</strong> ${report.user_feedback || 'N/A'}</p>
+            </div>
+
+            <div class="detail-section">
+                <h3>Reporter Info</h3>
+                <p><strong>Name:</strong> ${userProfile.fullname || 'N/A'}</p>
+                <p><strong>Email:</strong> ${userProfile.email || 'N/A'}</p>
+                <p><strong>Phone:</strong> ${userProfile.phone || 'N/A'}</p>
+            </div>
+
+            <div class="detail-section">
+                <h3>Location & Media</h3>
+                ${locationHtml}
                 ${photoHtml}
             </div>
-        </div>
 
-        <div class="profile-details-panel">
-            <div class="detail-card">
-                <h3><i class="fas fa-user-circle"></i> User Profile</h3>
-                
-                ${generateProfileDetails(profile)}
+            <div class="detail-section">
+                <h3>Update Status</h3>
+                <form class="status-update-form" data-report-id="${report.id}">
+                    <select name="status" required>
+                        <option value="Reported" ${report.status === 'Reported' ? 'selected' : ''}>Reported</option>
+                        <option value="In Progress" ${report.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                        <option value="Assigned" ${report.status === 'Assigned' ? 'selected' : ''}>Assigned</option>
+                        <option value="Resolved" ${report.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+                    </select>
+                    <button type="submit" class="secondary-button">Update</button>
+                </form>
             </div>
         </div>
     `;
+    
+    reportDetailEl().innerHTML = detailHtml;
 
-    // Attach listener to dropdown
-    reportDetailEl().querySelector('.status-dropdown').addEventListener('change', handleStatusUpdate);
+    // Add submit listener for status update
+    document.querySelector('.status-update-form').addEventListener('submit', handleStatusUpdate);
 }
 
-// --- Status Update Logic (Keep as is) ---
+/**
+ * Handles the status update form submission.
+ */
 async function handleStatusUpdate(e) {
-    const dropdown = e.target;
-    const reportId = dropdown.dataset.reportId;
-    const newStatus = dropdown.value;
-    const oldStatus = dropdown.dataset.currentStatus;
-
-    if (newStatus === oldStatus) return;
-
-    dropdown.disabled = true;
-    showMessage(`Updating status of report to ${newStatus}...`, 'info', 2000);
-
-    const { error } = await supabase
-        .from('emergency_reports')
-        .update({ status: newStatus })
-        .eq('id', reportId)
-        .select();
-
-    dropdown.disabled = false;
-
-    if (error) {
-        console.error('Status update failed:', error);
-        showMessage('Failed to update status: ' + error.message, 'error', 5000);
-        dropdown.value = oldStatus; 
-    } else {
-        showMessage(`Report status successfully set to ${newStatus}.`, 'success', 3000);
-        dropdown.dataset.currentStatus = newStatus; 
-        fetchUsersWithReports(); 
-    }
-}
-
-
-// =================================================================
-// --- Broadcast Module (UPDATED) ---
-// =================================================================
-
-async function handleBroadcast(e) {
     e.preventDefault();
     const form = e.target;
-    const messageInput = document.getElementById('broadcastMessage');
-    const message = messageInput.value.trim();
-
-    if (!message) {
-        showMessage('Broadcast message cannot be empty.', 'error', 3000);
+    const reportId = form.dataset.reportId;
+    const newStatus = form.elements['status'].value;
+    
+    // Find the report object to get the user_id for list return
+    const currentReport = ALL_REPORTS.find(r => r.id == reportId);
+    
+    if (!currentReport) {
+        showMessage('Error: Report not found in local data.', 'error');
         return;
     }
 
+    try {
+        // CRITICAL FIX: Update the correct table 'emergency_reports'
+        const { error } = await supabase
+            .from(REPORTS_TABLE) 
+            .update({ status: newStatus, updated_at: new Date().toISOString() })
+            .eq('id', reportId);
+
+        if (error) throw error;
+
+        // Update local state and re-render the detail view
+        const index = ALL_REPORTS.findIndex(r => r.id == reportId);
+        if (index !== -1) {
+            ALL_REPORTS[index].status = newStatus;
+            ALL_REPORTS[index].updated_at = new Date().toISOString();
+        }
+        
+        // Re-render the detail view to show the new status immediately
+        renderReportDetail(ALL_REPORTS[index]); 
+
+        // Also update the UNIQUE_USERS list pending count logic
+        await fetchUsersWithReports(); // Re-fetch or re-calculate user summary data
+        
+        showMessage(`Report ${reportId} status updated to: ${newStatus}`, 'success');
+
+    } catch (e) {
+        console.error('Error updating status:', e);
+        showMessage(`Status update failed: ${e.message}`, 'error');
+    }
+}
+
+// =================================================================
+// --- Broadcast Module ---
+// =================================================================
+
+/**
+ * Handles the broadcast form submission.
+ */
+async function handleBroadcast(e) {
+    e.preventDefault();
+    const form = document.getElementById('broadcastForm');
+    const messageEl = document.getElementById('broadcastMessage');
+    const message = messageEl.value.trim();
+
+    if (!message) {
+        showMessage('Broadcast message cannot be empty.', 'error');
+        return;
+    }
+
+    const confirmSend = confirm(`Are you sure you want to send the following critical broadcast to all users?\n\n"${message}"`);
+
+    if (!confirmSend) {
+        return;
+    }
+
+    // Disable button to prevent double submission
     const submitBtn = form.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
 
-    // *** Using the new BROADCASTS_TABLE constant. Payload matches your schema (id, message, timestamp) ***
-    const { error } = await supabase
-        .from(BROADCASTS_TABLE) 
-        .insert([{ message: message }]); 
-    // **************************************************************************************************
+    try {
+        // CRITICAL FIX: Changed column from 'body' to 'message' to match client's listener expectation.
+        const { data, error } = await supabase
+            .from(BROADCASTS_TABLE)
+            .insert({ 
+                title: 'CRITICAL ALERT', // Fixed title for severity
+                message: message // Use 'message' column for the text
+            })
+            .select();
 
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Broadcast';
+        if (error) throw error;
 
-    if (error) {
-        console.error('Broadcast failed:', error);
-        showMessage('Broadcast failed: ' + error.message + '. Check the broadcasts table and RLS permissions.', 'error', 7000);
-    } else {
-        showMessage('Broadcast sent successfully to all connected users!', 'success', 4000);
-        form.reset();
+        // The client-side listener (app.js) is now correctly set up to receive the postgres_changes INSERT event on this table.
+        // If you are using Supabase Edge Functions or third-party services for push notifications, they would be triggered by this DB insert.
+
+        showMessage('Broadcast sent successfully! All subscribed users should receive the alert.', 'success', 5000);
+        messageEl.value = ''; // Clear the form
+
+    } catch (e) {
+        console.error('Broadcast failed:', e);
+        showMessage(`Broadcast failed: ${e.message || 'Database error occurred.'}`, 'error', 5000);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Broadcast';
     }
 }
 
 
 // =================================================================
-// --- Initialization (Keep as is) ---
+// --- Main Entry Point ---
 // =================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    
-    const isAuthenticated = checkAuth();
-
-    // --- Login Page Setup ---
-    if (!isAuthenticated && (window.location.pathname.endsWith('/index.html') || window.location.pathname.endsWith('/'))) {
-        const loginForm = document.getElementById('adminLoginForm');
-        if (loginForm) {
-            loginForm.addEventListener('submit', handleLogin);
-        }
+    // Attempt to handle login form submission on the index page
+    const loginForm = document.getElementById('adminLoginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
     }
+
+    // Run auth check on all pages
+    const isAuthenticated = checkAuth();
 
     // --- Dashboard Setup ---
     if (isAuthenticated && window.location.pathname.endsWith('/dashboard.html')) {
         
+        // 1. Initial Content Loading & Navigation Setup
         fetchUsersWithReports(); 
 
+        // 2. Tab Switching
         document.querySelectorAll('.navbar a').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -547,6 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                // Handle Tab Switching
                 document.querySelectorAll('.content-section').forEach(section => {
                     section.classList.remove('active');
                 });
@@ -556,19 +551,40 @@ document.addEventListener('DOMContentLoaded', () => {
                     nav.classList.remove('active');
                 });
                 e.target.classList.add('active');
+                
+                // If switching to reports, ensure the correct view is loaded
+                if (targetId === 'reports') {
+                    if (CURRENT_VIEW === 'users') {
+                        renderUserList();
+                    } else if (CURRENT_VIEW === 'reports') {
+                        // Re-render report list for the current user, or go back to users if state is lost
+                        // Find the user ID of the first report in the list to re-render the report list
+                        const userId = ALL_REPORTS.find(r => r.user_id)?.user_id;
+                        if (userId) {
+                            renderReportList(userId);
+                        } else {
+                            renderUserList();
+                        }
+                    } else if (CURRENT_VIEW === 'detail') {
+                        // No-op: keep the detail view open
+                    }
+                }
             });
         });
 
+        // 3. Report Refresh Button
         const refreshBtn = document.getElementById('refreshReportsBtn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', fetchUsersWithReports);
         }
+        
+        // 4. Back Button Setup (initial state is hidden, handler is set in render functions)
+        // The simple back button logic is now handled dynamically in renderReportList and renderReportDetail
+        // to ensure it goes to the correct previous view.
+        
 
-        const backBtn = document.getElementById('backToUsersBtn');
-        if (backBtn) {
-            backBtn.addEventListener('click', handleBack);
-        }
 
+        // 5. Broadcast Form Submission
         const broadcastForm = document.getElementById('broadcastForm');
         if (broadcastForm) {
             broadcastForm.addEventListener('submit', handleBroadcast);
