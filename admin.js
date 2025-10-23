@@ -518,7 +518,7 @@ async function handleBroadcast(e) {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
 
-    // NOTE: Assuming 'broadcasts' table exists and accepts a 'message' column.
+    // NOTE: This line expects the 'title' column to exist in the database.
     const { error } = await supabase
         .from(BROADCASTS_TABLE) 
         .insert([{ message: message, title: 'CRITICAL ALERT' }]); 
