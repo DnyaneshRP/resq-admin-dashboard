@@ -503,10 +503,8 @@ async function handleStatusUpdate(e) {
 // --- Broadcast Module (Kept from previous state) ---
 // =================================================================
 
-// --- UPDATED handleBroadcast FUNCTION ---
 async function handleBroadcast(e) {
     e.preventDefault();
-
     const form = e.target;
     const messageInput = document.getElementById('broadcastMessage');
     const message = messageInput.value.trim();
@@ -520,32 +518,22 @@ async function handleBroadcast(e) {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
 
-    try {
-        // ✅ Call your deployed Edge Function
-        const res = await fetch('https://ayptiehjxxincwsbtysl.supabase.co/functions/v1/send-push-broadcast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: 'CRITICAL ALERT',
-                message: message
-            })
-        });
+    // NOTE: Assuming 'broadcasts' table exists and accepts a 'message' column.
+    const { error } = await supabase
+        .from(BROADCASTS_TABLE) 
+        .insert([{ message: message, title: 'CRITICAL ALERT' }]); 
 
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || 'Failed to send broadcast');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Broadcast';
 
-        console.log('Broadcast results:', result);
-        showMessage('Broadcast sent successfully!', 'success', 4000);
+    if (error) {
+        console.error('Broadcast failed:', error);
+        showMessage('Broadcast failed: ' + error.message + '. Check the broadcasts table and RLS permissions.', 'error', 7000);
+    } else {
+        showMessage('Broadcast sent successfully to all connected users!', 'success', 4000);
         form.reset();
-    } catch (err) {
-        console.error('Broadcast failed:', err);
-        showMessage('Broadcast failed: ' + err.message, 'error', 7000);
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Broadcast';
     }
 }
-
 
 
 // =================================================================
