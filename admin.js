@@ -498,44 +498,6 @@ async function handleStatusUpdate(e) {
     }
 }
 
-
-// =================================================================
-// --- Broadcast Module (Kept from previous state) ---
-// =================================================================
-
-async function handleBroadcast(e) {
-    e.preventDefault();
-    const form = e.target;
-    const messageInput = document.getElementById('broadcastMessage');
-    const message = messageInput.value.trim();
-
-    if (!message) {
-        showMessage('Broadcast message cannot be empty.', 'error', 3000);
-        return;
-    }
-
-    const submitBtn = form.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-
-    // NOTE: Assuming 'broadcasts' table exists and accepts a 'message' column.
-    const { error } = await supabase
-        .from(BROADCASTS_TABLE) 
-        .insert([{ message: message, title: 'CRITICAL ALERT' }]); 
-
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Broadcast';
-
-    if (error) {
-        console.error('Broadcast failed:', error);
-        showMessage('Broadcast failed: ' + error.message + '. Check the broadcasts table and RLS permissions.', 'error', 7000);
-    } else {
-        showMessage('Broadcast sent successfully to all connected users!', 'success', 4000);
-        form.reset();
-    }
-}
-
-
 // =================================================================
 // --- Initialization (Keep as is) ---
 // =================================================================
